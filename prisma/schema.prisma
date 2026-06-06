@@ -6,3 +6,166 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Invitation {
+  id          String       @id @default(uuid())
+  code        String       @unique
+  status      String       @default("available")
+  usedAt      DateTime?    @map("used_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  participant Participant?
+
+  @@map("invitations")
+}
+
+model Participant {
+  id               String            @id @default(uuid())
+  googleId         String            @unique @map("google_id")
+  name             String
+  email            String            @unique
+  phone            String?
+  hasPhone         Boolean           @default(false) @map("has_phone")
+  role             String            @default("participant")
+  invitationId     String            @unique @map("invitation_id")
+  invitation       Invitation        @relation(fields: [invitationId], references: [id])
+  createdAt        DateTime          @default(now()) @map("created_at")
+  groupPredictions GroupPrediction[]
+  thirdPredictions ThirdPrediction[]
+  powerup          Powerup?
+  koPredictions    KoPrediction[]
+
+  @@map("participants")
+}
+
+model Group {
+  id               String            @id @default(uuid())
+  name             String
+  label            String            @unique
+  teams            Team[]
+  groupPredictions GroupPrediction[]
+
+  @@map("groups")
+}
+
+model Team {
+  id                     String            @id @default(uuid())
+  name                   String
+  code                   String            @unique
+  isTop8                 Boolean           @default(false) @map("is_top8")
+  groupId                String            @map("group_id")
+  group                  Group             @relation(fields: [groupId], references: [id])
+  groupPredictions       GroupPrediction[]
+  thirdPredictions       ThirdPrediction[]
+  homeMatches            Match[]           @relation("HomeTeam")
+  awayMatches            Match[]           @relation("AwayTeam")
+  wonMatches             Match[]           @relation("WinnerTeam")
+  darkHorsePowerups      Powerup[]         @relation("DarkHorse")
+  disappointmentPowerups Powerup[]         @relation("Disappointment")
+  koPredictionsAdvanced  KoPrediction[]
+
+  @@map("teams")
+}
+
+model Round {
+  id         String  @id @default(uuid())
+  name       String
+  slug       String  @unique
+  order      Int
+  matchCount Int     @map("match_count")
+  matches    Match[]
+
+  @@map("rounds")
+}
+
+model Match {
+  id            String         @id @default(uuid())
+  roundId       String         @map("round_id")
+  round         Round          @relation(fields: [roundId], references: [id])
+  matchNumber   Int            @map("match_number")
+  homeTeamId    String?        @map("home_team_id")
+  homeTeam      Team?          @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId    String?        @map("away_team_id")
+  awayTeam      Team?          @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  scheduledAt   DateTime       @map("scheduled_at")
+  lockedAt      DateTime?      @map("locked_at")
+  reminderSent  Boolean        @default(false) @map("reminder_sent")
+  scoreHome     Int?           @map("score_home")
+  scoreAway     Int?           @map("score_away")
+  winnerTeamId  String?        @map("winner_team_id")
+  winnerTeam    Team?          @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
+  status        String         @default("scheduled")
+  koPredictions KoPrediction[]
+
+  @@map("matches")
+}
+
+model GroupPrediction {
+  id                String      @id @default(uuid())
+  participantId     String      @map("participant_id")
+  participant       Participant @relation(fields: [participantId], references: [id])
+  groupId           String      @map("group_id")
+  group             Group       @relation(fields: [groupId], references: [id])
+  teamId            String      @map("team_id")
+  team              Team        @relation(fields: [teamId], references: [id])
+  predictedPosition Int         @map("predicted_position")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  @@unique([participantId, groupId, teamId])
+  @@unique([participantId, groupId, predictedPosition])
+  @@map("group_predictions")
+}
+
+model ThirdPrediction {
+  id            String      @id @default(uuid())
+  participantId String      @map("participant_id")
+  participant   Participant @relation(fields: [participantId], references: [id])
+  teamId        String      @map("team_id")
+  team          Team        @relation(fields: [teamId], references: [id])
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@unique([participantId, teamId])
+  @@map("third_predictions")
+}
+
+model Powerup {
+  id                   String      @id @default(uuid())
+  participantId        String      @unique @map("participant_id")
+  participant          Participant @relation(fields: [participantId], references: [id])
+  darkHorseTeamId      String      @map("dark_horse_team_id")
+  darkHorseTeam        Team        @relation("DarkHorse", fields: [darkHorseTeamId], references: [id])
+  disappointmentTeamId String      @map("disappointment_team_id")
+  disappointmentTeam   Team        @relation("Disappointment", fields: [disappointmentTeamId], references: [id])
+  createdAt            DateTime    @default(now()) @map("created_at")
+  updatedAt            DateTime    @updatedAt @map("updated_at")
+
+  @@map("powerups")
+}
+
+model KoPrediction {
+  id             String      @id @default(uuid())
+  participantId  String      @map("participant_id")
+  participant    Participant @relation(fields: [participantId], references: [id])
+  matchId        String      @map("match_id")
+  match          Match       @relation(fields: [matchId], references: [id])
+  scoreHome      Int         @map("score_home")
+  scoreAway      Int         @map("score_away")
+  teamAdvancesId String      @map("team_advances_id")
+  teamAdvances   Team        @relation(fields: [teamAdvancesId], references: [id])
+  tripleActive   Boolean     @default(false) @map("triple_active")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  @@unique([participantId, matchId])
+  @@map("ko_predictions")
+}
+
+model ScoringParam {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Decimal
+  description String
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("scoring_params")
+}
