@@ -1,0 +1,389 @@
+openapi: 3.1.0
+info:
+  title: Polla Mundial 2026 API
+  version: 0.1.0
+  description: Backend privado de pronósticos para el Mundial 2026. ~20 participantes por invitación.
+
+servers:
+  - url: http://localhost:3000
+    description: Local
+  - url: https://api.polla2026.com
+    description: Producción (TBD)
+
+tags:
+  - name: health
+    description: Estado del servidor y conectividad a base de datos
+  - name: auth
+    description: Autenticación Google SSO y registro
+  - name: admin
+    description: Operaciones administrativas (requiere rol admin)
+  - name: groups
+    description: Grupos del torneo y predicciones de fase de grupos
+  - name: ko
+    description: Partidos de eliminación directa y predicciones KO
+  - name: powerups
+    description: Powerups del participante (caballo negro y decepción)
+  - name: scoreboard
+    description: Tabla de posiciones y podio
+
+security:
+  - bearerAuth: []
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check del servidor y BD
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Servidor y BD operativos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: BD no disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, db, error]
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  db:
+                    type: string
+                    example: disconnected
+                  error:
+                    type: string
+                    example: connect ECONNREFUSED 127.0.0.1:5433
+
+  # ── AUTH ────────────────────────────────────────────────────────────────────
+
+  /auth/google:
+    post:
+      tags: [auth]
+      summary: Login / Signup con Google SSO
+      operationId: postAuthGoogle
+      security: []
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /auth/invite/validate:
+    post:
+      tags: [auth]
+      summary: Valida si un código de invitación existe y está disponible
+      operationId: postAuthInviteValidate
+      security: []
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /auth/phone:
+    post:
+      tags: [auth]
+      summary: Registra el teléfono del participante autenticado
+      operationId: postAuthPhone
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  # ── ADMIN ───────────────────────────────────────────────────────────────────
+
+  /admin/invitations:
+    post:
+      tags: [admin]
+      summary: Genera uno o varios códigos de invitación de un solo uso
+      operationId: postAdminInvitations
+      responses:
+        '200':
+          description: Pendiente de implementar
+    get:
+      tags: [admin]
+      summary: Lista códigos de invitación con estado y participante asignado
+      operationId: getAdminInvitations
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /admin/groups:
+    post:
+      tags: [admin]
+      summary: Carga los 12 grupos con sus 4 equipos (solo una vez)
+      operationId: postAdminGroups
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /admin/ko/matches:
+    post:
+      tags: [admin]
+      summary: Carga los partidos de una ronda KO con equipos conocidos
+      operationId: postAdminKoMatches
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /admin/ko/matches/{matchId}/result:
+    put:
+      tags: [admin]
+      summary: Carga o corrige el resultado oficial de un partido KO
+      operationId: putAdminKoMatchResult
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /admin/scoring-params:
+    put:
+      tags: [admin]
+      summary: Edita los parámetros del sistema de puntuación
+      operationId: putAdminScoringParams
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /admin/top8:
+    put:
+      tags: [admin]
+      summary: Actualiza el listado top 8 FIFA (foto fija pre-torneo)
+      operationId: putAdminTop8
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /admin/participants:
+    get:
+      tags: [admin]
+      summary: Lista participantes con puntaje actual y datos de contacto
+      operationId: getAdminParticipants
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  # ── GROUPS ──────────────────────────────────────────────────────────────────
+
+  /groups:
+    get:
+      tags: [groups]
+      summary: Lista los 12 grupos con sus equipos y flag is_top8
+      operationId: getGroups
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /groups/predictions:
+    post:
+      tags: [groups]
+      summary: Guarda o actualiza el orden predicho de uno o varios grupos
+      operationId: postGroupsPredictions
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /groups/predictions/me:
+    get:
+      tags: [groups]
+      summary: Predicciones propias con flag group_complete y candidatos a tercero
+      operationId: getGroupsPredictionsMe
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /groups/predictions/friends:
+    get:
+      tags: [groups]
+      summary: Predicciones de todos los demás participantes (solo post-inicio)
+      operationId: getGroupsPredictionsFriends
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  # ── KO ──────────────────────────────────────────────────────────────────────
+
+  /ko/matches:
+    get:
+      tags: [ko]
+      summary: Lista todos los partidos KO agrupados por ronda
+      operationId: getKoMatches
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /ko/matches/{matchId}:
+    get:
+      tags: [ko]
+      summary: Detalle de un partido KO con resultado real y predicción propia
+      operationId: getKoMatch
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /ko/matches/{matchId}/predictions:
+    post:
+      tags: [ko]
+      summary: Registra predicción para un partido KO
+      operationId: postKoMatchPrediction
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pendiente de implementar
+    put:
+      tags: [ko]
+      summary: Edita la predicción de un partido KO
+      operationId: putKoMatchPrediction
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /ko/matches/{matchId}/predictions/triple:
+    put:
+      tags: [ko]
+      summary: Activa o desactiva el triple o nada para un partido
+      operationId: putKoMatchPredictionTriple
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /ko/matches/{matchId}/predictions/friends:
+    get:
+      tags: [ko]
+      summary: Pronósticos de todos los demás para un partido (solo post-inicio)
+      operationId: getKoMatchPredictionsFriends
+      parameters:
+        - name: matchId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  # ── POWERUPS ────────────────────────────────────────────────────────────────
+
+  /powerups/predictions:
+    post:
+      tags: [powerups]
+      summary: Registra caballo negro y decepción
+      operationId: postPowerupsPredictions
+      responses:
+        '200':
+          description: Pendiente de implementar
+    put:
+      tags: [powerups]
+      summary: Edita caballo negro y/o decepción
+      operationId: putPowerupsPredictions
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /powerups/predictions/me:
+    get:
+      tags: [powerups]
+      summary: Powerups del participante autenticado con detalle del equipo
+      operationId: getPowerupsPredictionsMe
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /powerups/predictions/friends:
+    get:
+      tags: [powerups]
+      summary: Powerups de todos los demás participantes (solo post-inicio)
+      operationId: getPowerupsPredictionsFriends
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  # ── SCOREBOARD ──────────────────────────────────────────────────────────────
+
+  /scoreboard:
+    get:
+      tags: [scoreboard]
+      summary: Tabla de posiciones con puntaje total y desglose por fase
+      operationId: getScoreboard
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+  /scoreboard/podium:
+    get:
+      tags: [scoreboard]
+      summary: Top 3 con premios (700K / 250K / 50K COP)
+      operationId: getScoreboardPodium
+      responses:
+        '200':
+          description: Pendiente de implementar
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+          example: Recurso no encontrado
+        code:
+          type: string
+          example: NOT_FOUND
+
+    HealthResponse:
+      type: object
+      required: [status, db, timestamp]
+      properties:
+        status:
+          type: string
+          example: ok
+        db:
+          type: string
+          example: connected
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-06-06T17:00:00.000Z'
