@@ -1287,56 +1287,311 @@ paths:
   /powerups/predictions:
     post:
       tags: [powerups]
-      summary: Registra caballo negro y decepción
+      summary: Registra el caballo negro y la decepción del participante
       operationId: postPowerupsPredictions
+      description: >
+        Crea los powerups obligatorios. Ambos campos son requeridos.
+        Validaciones:
+          - darkHorseTeamId debe pertenecer a un equipo con isTop8 false
+          - disappointmentTeamId debe pertenecer a un equipo con isTop8 true
+          - Valida candado de grupos (antes del 11 de junio de 2026)
+          - Falla si el participante ya tiene powerups registrados — usar PUT para editar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [darkHorseTeamId, disappointmentTeamId]
+              properties:
+                darkHorseTeamId:
+                  type: string
+                  format: uuid
+                  description: "Equipo fuera del top 8 FIFA"
+                disappointmentTeamId:
+                  type: string
+                  format: uuid
+                  description: "Equipo dentro del top 8 FIFA"
+            example:
+              darkHorseTeamId: "uuid-col"
+              disappointmentTeamId: "uuid-bra"
       responses:
-        '200':
-          description: Pendiente de implementar
+        '201':
+          description: Powerups registrados correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyPowerups'
+              example:
+                darkHorse:      { teamId: "uuid-col", name: "Colombia", code: "COL", isTop8: false }
+                disappointment: { teamId: "uuid-bra", name: "Brasil",   code: "BRA", isTop8: true }
+        '400':
+          description: Validación de elegibilidad fallida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                dark_horse_invalido:
+                  value: { error: "El caballo negro debe ser un equipo fuera del top 8 FIFA", code: "INVALID_DARK_HORSE" }
+                decepcion_invalida:
+                  value: { error: "La decepción debe ser un equipo dentro del top 8 FIFA", code: "INVALID_DISAPPOINTMENT" }
+        '409':
+          description: El participante ya tiene powerups — usar PUT para editar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Ya tienes powerups registrados", code: "POWERUPS_ALREADY_EXISTS" }
+        '423':
+          description: Candado activo — powerups cerrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Los powerups están cerrados", code: "PREDICTIONS_LOCKED" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
     put:
       tags: [powerups]
-      summary: Edita caballo negro y/o decepción
+      summary: Edita el caballo negro y/o la decepción del participante
       operationId: putPowerupsPredictions
+      description: >
+        Reemplaza los powerups existentes. Ambos campos son requeridos.
+        Aplica las mismas validaciones de elegibilidad que el POST.
+        Valida candado de grupos (antes del 11 de junio de 2026).
+        Falla si el participante no tiene powerups previos — usar POST para crear.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [darkHorseTeamId, disappointmentTeamId]
+              properties:
+                darkHorseTeamId:
+                  type: string
+                  format: uuid
+                  description: "Equipo fuera del top 8 FIFA"
+                disappointmentTeamId:
+                  type: string
+                  format: uuid
+                  description: "Equipo dentro del top 8 FIFA"
+            example:
+              darkHorseTeamId: "uuid-mar"
+              disappointmentTeamId: "uuid-fra"
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Powerups actualizados correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyPowerups'
+              example:
+                darkHorse:      { teamId: "uuid-mar", name: "Marruecos", code: "MAR", isTop8: false }
+                disappointment: { teamId: "uuid-fra", name: "Francia",   code: "FRA", isTop8: true }
+        '400':
+          description: Validación de elegibilidad fallida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                dark_horse_invalido:
+                  value: { error: "El caballo negro debe ser un equipo fuera del top 8 FIFA", code: "INVALID_DARK_HORSE" }
+                decepcion_invalida:
+                  value: { error: "La decepción debe ser un equipo dentro del top 8 FIFA", code: "INVALID_DISAPPOINTMENT" }
+        '404':
+          description: No existen powerups previos — usar POST para crear
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "No tienes powerups registrados", code: "POWERUPS_NOT_FOUND" }
+        '423':
+          description: Candado activo — powerups cerrados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Los powerups están cerrados", code: "PREDICTIONS_LOCKED" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /powerups/predictions/me:
     get:
       tags: [powerups]
-      summary: Powerups del participante autenticado con detalle del equipo
+      summary: Powerups del participante autenticado
       operationId: getPowerupsPredictionsMe
+      description: >
+        Retorna siempre un objeto. darkHorse y disappointment son null
+        si el participante aún no ha registrado sus powerups.
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Powerups del participante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyPowerups'
+              examples:
+                con_powerups:
+                  value:
+                    darkHorse:      { teamId: "uuid-col", name: "Colombia", code: "COL", isTop8: false }
+                    disappointment: { teamId: "uuid-bra", name: "Brasil",   code: "BRA", isTop8: true }
+                sin_powerups:
+                  value:
+                    darkHorse:      null
+                    disappointment: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /powerups/predictions/friends:
     get:
       tags: [powerups]
-      summary: Powerups de todos los demás participantes (solo post-inicio)
+      summary: Powerups de todos los demás participantes
       operationId: getPowerupsPredictionsFriends
+      description: >
+        Solo disponible una vez iniciado el torneo (NOW() >= scheduledAt del primer partido).
+        Si el torneo no ha iniciado retorna available false con la fecha de apertura.
+        Participantes que no han guardado powerups aparecen con darkHorse y
+        disappointment en null.
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Powerups de amigos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available]
+                properties:
+                  available:   { type: boolean }
+                  availableAt:
+                    type: [string, 'null']
+                    format: date-time
+                    description: "Solo presente cuando available es false"
+                  data:
+                    type: [array, 'null']
+                    description: "Solo presente cuando available es true"
+                    items:
+                      $ref: '#/components/schemas/FriendPowerups'
+              examples:
+                disponible:
+                  value:
+                    available: true
+                    availableAt: null
+                    data:
+                      - participant: { id: "uuid-juan", name: "Juan" }
+                        darkHorse:      { teamId: "uuid-mar", name: "Marruecos", code: "MAR", isTop8: false }
+                        disappointment: { teamId: "uuid-fra", name: "Francia",   code: "FRA", isTop8: true }
+                      - participant: { id: "uuid-maria", name: "María" }
+                        darkHorse:      null
+                        disappointment: null
+                no_disponible:
+                  value:
+                    available: false
+                    availableAt: "2026-06-11T17:00:00Z"
+                    data: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ── SCOREBOARD ──────────────────────────────────────────────────────────────
 
   /scoreboard:
     get:
       tags: [scoreboard]
-      summary: Tabla de posiciones con puntaje total y desglose por fase
+      summary: Tabla de posiciones completa
       operationId: getScoreboard
+      description: >
+        Retorna todos los participantes ordenados por puntaje total descendente.
+        El puntaje se calcula on-demand al momento del request, usando el caché
+        del cron de 1AM si está disponible.
+        prize se incluye para rank 1, 2 y 3. Null para el resto.
+        Criterio de desempate: mayor cantidad de marcadores exactos acertados en KO.
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Tabla de posiciones
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updatedAt, data]
+                properties:
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    description: "Timestamp del último recálculo (cron 1AM u on-demand)"
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ScoreboardEntry'
+              example:
+                updatedAt: "2026-06-28T01:00:00.000Z"
+                data:
+                  - rank: 1
+                    participant: { id: "uuid-juan",  name: "Juan" }
+                    total: 145
+                    prize: 700000
+                  - rank: 2
+                    participant: { id: "uuid-maria", name: "María" }
+                    total: 132
+                    prize: 250000
+                  - rank: 3
+                    participant: { id: "uuid-luis",  name: "Luis" }
+                    total: 118
+                    prize: 50000
+                  - rank: 4
+                    participant: { id: "uuid-pedro", name: "Pedro" }
+                    total: 98
+                    prize: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
-  /scoreboard/podium:
+  /scoreboard/{participantId}/breakdown:
     get:
       tags: [scoreboard]
-      summary: Top 3 con premios (700K / 250K / 50K COP)
-      operationId: getScoreboardPodium
+      summary: Desglose de puntaje por fase de un participante
+      operationId: getScoreboardBreakdown
+      description: >
+        Retorna el desglose detallado de puntaje de cualquier participante.
+        Accesible para todos los participantes autenticados — puedes ver el
+        breakdown propio o el de cualquier amigo.
+        tripleUsesRemaining refleja los usos de triple o nada restantes
+        del participante consultado.
+      parameters:
+        - name: participantId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: "UUID del participante. Puede ser el propio o el de otro participante."
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Desglose de puntaje
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreBreakdown'
+              example:
+                participant: { id: "uuid-juan", name: "Juan" }
+                total: 145
+                breakdown:
+                  groups: 42
+                  thirds: 10
+                  ko: 80
+                  darkHorse: 16
+                  disappointment: -3
+                tripleUsesRemaining: 2
+                prize: 700000
+        '404':
+          description: Participante no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Participante no encontrado", code: "PARTICIPANT_NOT_FOUND" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
 components:
   securitySchemes:
@@ -1535,6 +1790,28 @@ components:
             $ref: '#/components/schemas/GroupRanking'
           minItems: 0
           maxItems: 4
+        pointsEarned:
+          description: >
+            Puntos obtenidos en este grupo. Null mientras el torneo no tiene
+            resultados oficiales de fase de grupos. Las llaves corresponden
+            a los keys de scoring_params.
+          oneOf:
+            - type: object
+              required: [pts_group_position_exact, pts_group_position_partial, bonus_group_complete, total]
+              properties:
+                pts_group_position_exact:
+                  type: integer
+                  description: "Puntos por equipos en posición exacta (suma de todos los acertados)"
+                pts_group_position_partial:
+                  type: integer
+                  description: "Puntos por equipos que clasificaron pero en diferente posición"
+                bonus_group_complete:
+                  type: integer
+                  description: "Bonus por tener los 4 equipos del grupo en posición correcta. 0 si no aplica."
+                total:
+                  type: integer
+                  description: "Total de puntos sumados en este grupo"
+            - type: 'null'
 
     ThirdCandidate:
       type: object
@@ -1549,6 +1826,21 @@ components:
         groupId:  { type: string, format: uuid }
         label:    { type: string, description: "Letra del grupo al que pertenece" }
         selected: { type: boolean, description: "true si fue marcado como mejor tercero" }
+        pointsEarned:
+          description: >
+            Puntos obtenidos por este tercero. Null mientras no se conocen los
+            8 mejores terceros oficiales del torneo.
+          oneOf:
+            - type: object
+              required: [pts_third_correct, total]
+              properties:
+                pts_third_correct:
+                  type: integer
+                  description: "Puntos por acertar que este equipo clasificó como mejor tercero. 0 si no clasificó."
+                total:
+                  type: integer
+                  description: "Total de puntos sumados por este tercero"
+            - type: 'null'
 
     ParticipantPredictions:
       type: object
@@ -1586,6 +1878,34 @@ components:
         lockedIn:
           type: boolean
           description: "true si NOW() >= lockedAt. El frontend usa esto para mostrar el candado."
+        pointsEarned:
+          description: >
+            Puntos obtenidos en este partido. Null mientras el partido no tiene
+            resultado oficial. Las llaves corresponden a los keys de scoring_params.
+          oneOf:
+            - type: object
+              required: [pts_ko_advances, pts_ko_exact_score, mult_triple, scale_factor, scale_slug, total]
+              properties:
+                pts_ko_advances:
+                  type: integer
+                  description: "Puntos por acertar quién avanza, independiente del marcador"
+                pts_ko_exact_score:
+                  type: integer
+                  description: "Puntos por marcador exacto a 120'"
+                mult_triple:
+                  type: integer
+                  description: "Puntos adicionales por triple o nada. 0 si no estaba activo o no acertó"
+                scale_factor:
+                  type: number
+                  description: "Multiplicador de ronda aplicado (scale_r32, scale_r16, scale_qf, scale_sf o scale_final)"
+                scale_slug:
+                  type: string
+                  enum: [scale_r32, scale_r16, scale_qf, scale_sf, scale_final]
+                  description: "Key del multiplicador de ronda aplicado"
+                total:
+                  type: integer
+                  description: "Total de puntos sumados en este partido"
+            - type: 'null'
 
     KoTeam:
       type: object
@@ -1669,3 +1989,134 @@ components:
                 teamAdvancesId: { type: string, format: uuid }
                 tripleActive:   { type: boolean }
             - type: 'null'
+
+    PowerupTeam:
+      type: object
+      description: Equipo seleccionado como powerup. Null si aún no se ha guardado.
+      required: [teamId, name, code, isTop8]
+      properties:
+        teamId: { type: string, format: uuid }
+        name:   { type: string }
+        code:   { type: string }
+        isTop8: { type: boolean }
+
+    MyPowerups:
+      type: object
+      description: >
+        Powerups del participante autenticado. darkHorse y disappointment son null
+        si aún no ha guardado sus powerups.
+      required: [darkHorse, disappointment]
+      properties:
+        darkHorse:
+          oneOf:
+            - $ref: '#/components/schemas/PowerupTeam'
+            - type: 'null'
+        disappointment:
+          oneOf:
+            - $ref: '#/components/schemas/PowerupTeam'
+            - type: 'null'
+        pointsEarned:
+          description: >
+            Puntos acumulados por powerups hasta la ronda más reciente con resultado.
+            Null mientras el torneo no tiene resultados oficiales.
+            Se actualiza después de cada ronda completada.
+          oneOf:
+            - type: object
+              required: [pts_dark_horse_per_round, pts_disappointment_per_round, dark_horse_rounds_advanced, disappointment_rounds_advanced, total]
+              properties:
+                pts_dark_horse_per_round:
+                  type: integer
+                  description: "Puntos acumulados por rondas avanzadas del caballo negro (siempre >= 0)"
+                pts_disappointment_per_round:
+                  type: integer
+                  description: "Puntos restados por rondas avanzadas de la decepción (siempre <= 0)"
+                dark_horse_rounds_advanced:
+                  type: integer
+                  description: "Número de rondas que ha avanzado el caballo negro hasta ahora"
+                disappointment_rounds_advanced:
+                  type: integer
+                  description: "Número de rondas que ha avanzado la decepción hasta ahora"
+                total:
+                  type: integer
+                  description: "Suma de pts_dark_horse_per_round + pts_disappointment_per_round"
+            - type: 'null'
+
+    FriendPowerups:
+      type: object
+      required: [participant, darkHorse, disappointment]
+      properties:
+        participant:
+          type: object
+          required: [id, name]
+          properties:
+            id:   { type: string, format: uuid }
+            name: { type: string }
+        darkHorse:
+          oneOf:
+            - $ref: '#/components/schemas/PowerupTeam'
+            - type: 'null'
+        disappointment:
+          oneOf:
+            - $ref: '#/components/schemas/PowerupTeam'
+            - type: 'null'
+
+    ScoreboardEntry:
+      type: object
+      required: [rank, participant, total, prize]
+      properties:
+        rank:
+          type: integer
+          description: "Posición en la tabla. Empieza en 1."
+        participant:
+          type: object
+          required: [id, name]
+          properties:
+            id:   { type: string, format: uuid }
+            name: { type: string }
+        total:
+          type: integer
+          description: "Puntaje total acumulado"
+        prize:
+          type: [integer, 'null']
+          description: "Premio en COP. 700000 para rank 1, 250000 para rank 2, 50000 para rank 3. Null para rank 4 en adelante."
+
+    ScoreBreakdown:
+      type: object
+      required: [participant, total, breakdown, tripleUsesRemaining, prize]
+      properties:
+        participant:
+          type: object
+          required: [id, name]
+          properties:
+            id:   { type: string, format: uuid }
+            name: { type: string }
+        total:
+          type: integer
+          description: "Puntaje total acumulado"
+        breakdown:
+          type: object
+          required: [groups, thirds, ko, darkHorse, disappointment]
+          properties:
+            groups:
+              type: integer
+              description: "Puntos de fase de grupos (posiciones acertadas)"
+            thirds:
+              type: integer
+              description: "Puntos por mejores terceros acertados"
+            ko:
+              type: integer
+              description: "Puntos acumulados en fase KO (avances + marcadores exactos)"
+            darkHorse:
+              type: integer
+              description: "Puntos acumulados por rondas avanzadas del caballo negro"
+            disappointment:
+              type: integer
+              description: "Puntos restados por rondas avanzadas de la decepción (valor negativo o cero)"
+        tripleUsesRemaining:
+          type: integer
+          minimum: 0
+          maximum: 3
+          description: "Usos de triple o nada disponibles. Solo relevante para el participante autenticado."
+        prize:
+          type: [integer, 'null']
+          description: "Premio en COP si está en el podio. Null si no."
