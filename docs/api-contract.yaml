@@ -66,31 +66,207 @@ paths:
   /auth/google:
     post:
       tags: [auth]
-      summary: Login / Signup con Google SSO
+      summary: Login o signup con Google SSO
       operationId: postAuthGoogle
       security: []
+      description: >
+        Recibe el ID token de Google. Si el email no existe crea el participante
+        (201). Si ya existe loguea (200). El frontend usa hasJoined y hasPhone
+        para determinar el siguiente paso:
+          hasJoined false → pantalla de código de invitación
+          hasJoined true + hasPhone false → pantalla de teléfono
+          hasJoined true + hasPhone true → home
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [credential]
+              properties:
+                credential:
+                  type: string
+                  description: ID token obtenido del flujo OAuth de Google
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                token: "eyJhbGci..."
+                participant:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  name: "Luisa Gómez"
+                  email: "luisa@gmail.com"
+                  role: "participant"
+                  hasJoined: true
+                  hasPhone: true
+        '201':
+          description: Signup exitoso — usuario recién creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                token: "eyJhbGci..."
+                participant:
+                  id: "123e4567-e89b-12d3-a456-426614174000"
+                  name: "Luisa Gómez"
+                  email: "luisa@gmail.com"
+                  role: "participant"
+                  hasJoined: false
+                  hasPhone: false
+        '400':
+          description: Falta el campo credential
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "credential es requerido"
+                code: "VALIDATION_ERROR"
+        '401':
+          description: ID token de Google inválido o expirado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Token de Google inválido"
+                code: "INVALID_GOOGLE_TOKEN"
 
-  /auth/invite/validate:
+  /auth/join:
     post:
       tags: [auth]
-      summary: Valida si un código de invitación existe y está disponible
-      operationId: postAuthInviteValidate
-      security: []
+      summary: Asocia al participante a la polla mediante código de invitación
+      operationId: postAuthJoin
+      description: >
+        Se llama cuando hasJoined es false. Valida el código, lo marca como usado
+        y asocia la invitación al participante. Requiere JWT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code:
+                  type: string
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Código válido, participante asociado a la polla
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, hasJoined]
+                properties:
+                  ok:        { type: boolean }
+                  hasJoined: { type: boolean }
+              example:
+                ok: true
+                hasJoined: true
+        '400':
+          description: Falta el campo code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "code es requerido"
+                code: "VALIDATION_ERROR"
+        '401':
+          description: JWT ausente o inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "No autorizado"
+                code: "UNAUTHORIZED"
+        '404':
+          description: Código no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Código no encontrado"
+                code: "INVITE_NOT_FOUND"
+        '409':
+          description: Código ya utilizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Código ya utilizado"
+                code: "INVITE_ALREADY_USED"
 
   /auth/phone:
     post:
       tags: [auth]
-      summary: Registra el teléfono del participante autenticado
+      summary: Registra el número de teléfono del participante
       operationId: postAuthPhone
+      description: >
+        Se llama cuando hasPhone es false. El número se usa para los recordatorios
+        de WhatsApp vía Baileys. Formato E.164 requerido. Requiere JWT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone:
+                  type: string
+                  pattern: '^\+[1-9]\d{7,14}$'
+                  description: "Número en formato E.164, ej: +573001234567"
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Teléfono registrado correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, phone]
+                properties:
+                  ok:    { type: boolean }
+                  phone: { type: string }
+              example:
+                ok: true
+                phone: "+573001234567"
+        '400':
+          description: Formato de teléfono inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Formato inválido. Usa E.164 ej: +573001234567"
+                code: "INVALID_PHONE"
+        '401':
+          description: JWT ausente o inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "No autorizado"
+                code: "UNAUTHORIZED"
+        '409':
+          description: Teléfono ya registrado en otro participante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Teléfono ya registrado"
+                code: "PHONE_ALREADY_EXISTS"
 
   # ── ADMIN ───────────────────────────────────────────────────────────────────
 
@@ -387,3 +563,35 @@ components:
           type: string
           format: date-time
           example: '2026-06-06T17:00:00.000Z'
+
+    ParticipantMe:
+      type: object
+      required: [id, name, email, role, hasJoined, hasPhone]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [participant, admin]
+        hasJoined:
+          type: boolean
+          description: "true si ya fue asociado a un código de invitación"
+        hasPhone:
+          type: boolean
+          description: "true si ya registró número de WhatsApp"
+
+    AuthResponse:
+      type: object
+      required: [token, participant]
+      properties:
+        token:
+          type: string
+          description: "JWT con expiración de 45 días"
+        participant:
+          $ref: '#/components/schemas/ParticipantMe'
