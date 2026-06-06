@@ -43,6 +43,7 @@ model Group {
   label            String            @unique
   teams            Team[]
   groupPredictions GroupPrediction[]
+  standings        GroupStanding[]
 
   @@map("groups")
 }
@@ -51,6 +52,7 @@ model Team {
   id                     String            @id @default(uuid())
   name                   String
   code                   String            @unique
+  externalTeamId         String?           @unique
   isTop8                 Boolean           @default(false) @map("is_top8")
   groupId                String            @map("group_id")
   group                  Group             @relation(fields: [groupId], references: [id])
@@ -62,6 +64,7 @@ model Team {
   darkHorsePowerups      Powerup[]         @relation("DarkHorse")
   disappointmentPowerups Powerup[]         @relation("Disappointment")
   koPredictionsAdvanced  KoPrediction[]
+  standing               GroupStanding?
 
   @@map("teams")
 }
@@ -158,6 +161,22 @@ model KoPrediction {
 
   @@unique([participantId, matchId])
   @@map("ko_predictions")
+}
+
+model GroupStanding {
+  id               String   @id @default(uuid())
+  teamId           String   @unique @map("team_id")
+  team             Team     @relation(fields: [teamId], references: [id])
+  groupId          String   @map("group_id")
+  group            Group    @relation(fields: [groupId], references: [id])
+  pts              Int      @default(0)
+  goalsFor         Int      @default(0) @map("goals_for")
+  goalsAgainst     Int      @default(0) @map("goals_against")
+  realPosition     Int?     @map("real_position")
+  qualifiedAsThird Boolean  @default(false) @map("qualified_as_third")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("group_standings")
 }
 
 model ScoringParam {

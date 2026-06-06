@@ -198,8 +198,8 @@ scale_final                → multiplicador para final (default: 4)
 
 ### Candidatos a mejores terceros
 - Los candidatos son los equipos que el participante predijo en `predicted_position = 3` en los 12 grupos.
-- El endpoint `GET /groups/predictions/me` los devuelve con flag `selected: true/false`.
-- El BE valida que los 8 elegidos en `third_predictions` sean subconjunto de esos candidatos.
+- `GET /groups/thirds` retorna los candidatos con flag `selected: true/false` y `selectedCount`.
+- `POST /groups/thirds` recibe exactamente 8 `teamIds`. El BE valida que sean subconjunto de los candidatos del participante.
 
 ### Visibilidad de pronósticos de amigos
 - `GET /groups/predictions/friends` → disponible solo si `NOW() >= scheduled_at` del primer partido.
@@ -223,9 +223,9 @@ scale_final                → multiplicador para final (default: 4)
 ### Auth
 | Método | Ruta | Descripción |
 |---|---|---|
-| POST | `/auth/google` | Login/Signup con SSO. Retorna token + flag `has_phone`. En signup valida código de invitación. |
-| POST | `/auth/invite/validate` | Valida si un código existe y no ha sido usado. |
-| POST | `/auth/phone` | Registra teléfono del participante autenticado. Obligatorio si `has_phone = false`. |
+| POST | `/auth/google` | Login/Signup con SSO. Retorna token + flags `hasJoined` y `hasPhone`. Crea participante si es la primera vez. |
+| POST | `/auth/join` | Asocia al participante a la polla mediante código de invitación. Requiere JWT. Se llama cuando `hasJoined = false`. |
+| POST | `/auth/phone` | Registra teléfono del participante autenticado en formato E.164. Requiere JWT. Se llama cuando `hasPhone = false`. |
 
 ### Admin
 | Método | Ruta | Descripción |
@@ -235,7 +235,7 @@ scale_final                → multiplicador para final (default: 4)
 | POST | `/admin/groups` | Carga los 12 grupos con sus 4 equipos. Solo una vez. |
 | POST | `/admin/ko/matches` | Carga los partidos de una ronda KO con equipos ya conocidos. Se usa ronda a ronda. |
 | PUT | `/admin/ko/matches/:matchId/result` | Carga o corrige resultado oficial (`score_home`, `score_away`, `winner_team_id`). Dispara recalculate. |
-| PUT | `/admin/scoring-params` | Edita parámetros del sistema de puntos. |
+| PUT | `/admin/scoring-params/{key}` | Edita el valor de un parámetro de puntuación por su key. `key` es uno de los 14 valores de `scoring_params`. |
 | PUT | `/admin/top8` | Actualiza el listado top 8 FIFA (foto fija). |
 | GET | `/admin/participants` | Lista participantes con puntaje actual y datos de contacto. |
 
@@ -244,18 +244,19 @@ scale_final                → multiplicador para final (default: 4)
 |---|---|---|
 | GET | `/groups` | Lista los 12 grupos con sus equipos y flag `is_top8` por equipo. |
 | POST | `/groups/predictions` | Guarda o actualiza el orden predicho. Acepta un grupo o array de grupos. Body: `{ predictions: [{ group_id, rankings: [{ team_id, position }] }] }`. Valida candado. |
-| GET | `/groups/predictions/me` | Predicciones propias: orden por grupo + flag `group_complete` + 12 candidatos a tercero con flag `selected`. |
+| GET | `/groups/predictions/me` | Predicciones propias: orden por grupo + flag `groupComplete` + contador `completedGroups`. |
 | GET | `/groups/predictions/friends` | Predicciones de todos los demás participantes. Solo disponible post-inicio del torneo. |
+| GET | `/groups/thirds` | Candidatos a mejores terceros (equipos predichos en posición 3). Incluye flag `selected` y `pointsEarned`. |
+| POST | `/groups/thirds` | Guarda o reemplaza la selección de exactamente 8 mejores terceros. Los teamIds deben ser candidatos válidos. Valida candado. |
 
 ### KO
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/ko/matches` | Lista todos los partidos KO agrupados por ronda. Incluye resultado real y predicción propia del autenticado. Si `NOW() > scheduled_at + 90min` y no hay resultado, consulta API externa, guarda y retorna. |
+| GET | `/ko/matches` | Lista partidos de una ronda (query param `roundSlug` requerido). Incluye resultado real y predicción propia del autenticado. Si `NOW() > scheduled_at + 90min` y no hay resultado, consulta API externa, guarda y retorna. |
 | GET | `/ko/matches/:matchId` | Detalle de un partido con el mismo esquema. |
-| POST | `/ko/matches/:matchId/predictions` | Registra `score_home`, `score_away`, `team_advances_id`. Opcionalmente `triple_active: true`. Valida candado y usos de triple. |
-| PUT | `/ko/matches/:matchId/predictions` | Edita el pronóstico. Valida candado. |
-| PUT | `/ko/matches/:matchId/predictions/triple` | Activa o desactiva triple. Valida usos restantes (máx 3 totales) y candado. |
-| GET | `/ko/matches/:matchId/predictions/friends` | Pronósticos de todos los demás para ese partido. Solo visible una vez iniciado el partido. |
+| POST | `/ko/matches/:matchId/predictions` | Registra `scoreHome`, `scoreAway`, `teamAdvancesId`. Opcionalmente `tripleActive: true`. Valida candado y usos de triple. |
+| PUT | `/ko/matches/:matchId/predictions` | Edita el pronóstico. `tripleActive` incluido en el body. Valida candado y usos de triple si cambia de false a true. |
+| GET | `/ko/matches/:matchId/predictions/friends` | Pronósticos de todos los demás para ese partido. Solo visible una vez iniciado el partido (`NOW() >= match.scheduledAt`). |
 
 ### Powerups
 | Método | Ruta | Descripción |
@@ -268,8 +269,8 @@ scale_final                → multiplicador para final (default: 4)
 ### Scoreboard
 | Método | Ruta | Descripción |
 |---|---|---|
-| GET | `/scoreboard` | Tabla de posiciones calculada on-demand con puntaje total y desglose por fase. Usa caché si el cron ya corrió. |
-| GET | `/scoreboard/podium` | Top 3 con premios (700K / 250K / 50K COP). |
+| GET | `/scoreboard` | Tabla de posiciones completa ordenada por puntaje. Incluye `prize` para rank 1–3 (700K / 250K / 50K COP). Usa caché si el cron ya corrió. |
+| GET | `/scoreboard/:participantId/breakdown` | Desglose detallado de puntaje por fase (groups, thirds, ko, darkHorse, disappointment) de cualquier participante. |
 
 ---
 
