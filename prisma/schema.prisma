@@ -7,10 +7,37 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+}
+
+enum InvitationStatus {
+  AVAILABLE
+  USED
+  EXPIRED
+}
+
+enum ParticipantRole {
+  PARTICIPANT
+  ADMIN
+}
+
+enum RoundSlug {
+  GROUP
+  R32
+  R16
+  QF
+  SF
+  THIRD
+  FINAL
+}
+
 model Invitation {
   id          String       @id @default(uuid())
   code        String       @unique
-  status      String       @default("available")
+  status      InvitationStatus @default(AVAILABLE)
   usedAt      DateTime?    @map("used_at")
   createdAt   DateTime     @default(now()) @map("created_at")
   participant Participant?
@@ -25,7 +52,7 @@ model Participant {
   email            String            @unique
   phone            String?
   hasPhone         Boolean           @default(false) @map("has_phone")
-  role             String            @default("participant")
+  role             ParticipantRole   @default(PARTICIPANT)
   invitationId     String            @unique @map("invitation_id")
   invitation       Invitation        @relation(fields: [invitationId], references: [id])
   createdAt        DateTime          @default(now()) @map("created_at")
@@ -72,7 +99,7 @@ model Team {
 model Round {
   id         String  @id @default(uuid())
   name       String
-  slug       String  @unique
+  slug       RoundSlug @unique
   order      Int
   matchCount Int     @map("match_count")
   matches    Match[]
@@ -96,7 +123,7 @@ model Match {
   scoreAway     Int?           @map("score_away")
   winnerTeamId  String?        @map("winner_team_id")
   winnerTeam    Team?          @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
-  status          String         @default("scheduled")
+  status          MatchStatus    @default(SCHEDULED)
   externalMatchId String?        @unique @map("external_match_id")
   koPredictions   KoPrediction[]
 

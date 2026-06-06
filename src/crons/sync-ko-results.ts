@@ -1,3 +1,4 @@
+import { MatchStatus, RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
 
@@ -10,11 +11,11 @@ export async function syncKoResults(): Promise<void> {
 
     const partidos = await prisma.match.findMany({
       where: {
-        status: { not: 'finished' },
+        status: { not: MatchStatus.FINISHED },
         externalMatchId: { not: null },
         scheduledAt: { lte: hace120min },
         round: {
-          slug: { not: 'group' },
+          slug: { not: RoundSlug.GROUP },
         },
       },
       include: { round: true },
@@ -67,7 +68,7 @@ export async function syncKoResults(): Promise<void> {
             data: {
               scoreHome,
               scoreAway,
-              status: 'finished',
+              status: MatchStatus.FINISHED,
               winnerTeamId: winnerTeamId ?? undefined,
             },
           })
@@ -82,11 +83,11 @@ export async function syncKoResults(): Promise<void> {
         } else if (
           matchExterno.finished === 'FALSE' &&
           matchExterno.time_elapsed !== 'notstarted' &&
-          partido.status !== 'live'
+          partido.status !== MatchStatus.LIVE
         ) {
           await prisma.match.update({
             where: { id: partido.id },
-            data: { status: 'live' },
+            data: { status: MatchStatus.LIVE },
           })
           console.info(`[sync-ko-results] Partido ${partido.id} marcado como live`)
         }

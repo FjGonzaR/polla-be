@@ -1,3 +1,4 @@
+import { RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
 

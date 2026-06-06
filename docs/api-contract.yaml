@@ -100,7 +100,7 @@ paths:
                   id: "123e4567-e89b-12d3-a456-426614174000"
                   name: "Luisa Gómez"
                   email: "luisa@gmail.com"
-                  role: "participant"
+                  role: "PARTICIPANT"
                   hasJoined: true
                   hasPhone: true
         '201':
@@ -115,7 +115,7 @@ paths:
                   id: "123e4567-e89b-12d3-a456-426614174000"
                   name: "Luisa Gómez"
                   email: "luisa@gmail.com"
-                  role: "participant"
+                  role: "PARTICIPANT"
                   hasJoined: false
                   hasPhone: false
         '400':
@@ -288,7 +288,7 @@ paths:
               example:
                 id: "uuid"
                 code: "X7K2MP"
-                status: "available"
+                status: "AVAILABLE"
                 usedAt: null
                 expiresAt: "2026-06-12T15:00:00.000Z"
                 createdAt: "2026-06-11T15:00:00.000Z"
@@ -307,7 +307,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [available, used]
+            enum: [AVAILABLE, USED, EXPIRED]
           description: "Filtra por estado. Si se omite retorna todos."
       responses:
         '200':
@@ -327,8 +327,8 @@ paths:
               example:
                 total: 2
                 data:
-                  - { id: "uuid1", code: "X7K2MP", status: "used",     usedAt: "2026-06-11T16:00:00Z", expiresAt: "2026-06-12T15:00:00Z", createdAt: "2026-06-11T15:00:00Z" }
-                  - { id: "uuid2", code: "A3BNQ9", status: "available", usedAt: null,                   expiresAt: "2026-06-12T16:00:00Z", createdAt: "2026-06-11T16:00:00Z" }
+                  - { id: "uuid1", code: "X7K2MP", status: "USED",      usedAt: "2026-06-11T16:00:00Z", expiresAt: "2026-06-12T15:00:00Z", createdAt: "2026-06-11T15:00:00Z" }
+                  - { id: "uuid2", code: "A3BNQ9", status: "AVAILABLE", usedAt: null,                   expiresAt: "2026-06-12T16:00:00Z", createdAt: "2026-06-11T16:00:00Z" }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -403,14 +403,14 @@ paths:
               properties:
                 roundSlug:
                   type: string
-                  enum: [r32, r16, qf, sf, 3rd, final]
+                  enum: [GROUP, R32, R16, QF, SF, THIRD, FINAL]
                 matches:
                   type: array
                   items:
                     $ref: '#/components/schemas/KoMatchInput'
                   minItems: 1
             example:
-              roundSlug: "r32"
+              roundSlug: "R32"
               matches:
                 - externalMatchId: 73
                   matchNumber: 1
@@ -438,7 +438,7 @@ paths:
                   ok:           { type: boolean }
                   roundSlug:    { type: string }
                   matchesCount: { type: integer }
-              example: { ok: true, roundSlug: "r32", matchesCount: 16 }
+              example: { ok: true, roundSlug: "R32", matchesCount: 16 }
         '404':
           description: Ronda no encontrada
           content:
@@ -959,7 +959,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: [r32, r16, qf, sf, 3rd, final]
+            enum: [GROUP, R32, R16, QF, SF, THIRD, FINAL]
           description: "Ronda a consultar"
       responses:
         '200':
@@ -977,14 +977,14 @@ paths:
                     items:
                       $ref: '#/components/schemas/KoMatch'
               example:
-                round: { slug: "r32", name: "Dieciseisavos", order: 1 }
+                round: { slug: "R32", name: "Dieciseisavos", order: 1 }
                 matches:
                   - id: "uuid-match-1"
                     externalMatchId: 73
                     matchNumber: 1
                     scheduledAt: "2026-06-28T12:00:00Z"
                     lockedAt: "2026-06-28T11:30:00Z"
-                    status: "scheduled"
+                    status: "SCHEDULED"
                     homeTeam: null
                     awayTeam: null
                     homeTeamLabel: "Runner-up Group A"
@@ -996,7 +996,7 @@ paths:
                     matchNumber: 2
                     scheduledAt: "2026-06-28T16:00:00Z"
                     lockedAt: "2026-06-28T15:30:00Z"
-                    status: "finished"
+                    status: "FINISHED"
                     homeTeam: { id: "uuid-col", name: "Colombia", code: "COL" }
                     awayTeam: { id: "uuid-bra", name: "Brasil",   code: "BRA" }
                     homeTeamLabel: null
@@ -1657,7 +1657,7 @@ components:
           format: email
         role:
           type: string
-          enum: [participant, admin]
+          enum: [PARTICIPANT, ADMIN]
         hasJoined:
           type: boolean
           description: "true si ya fue asociado a un código de invitación"
@@ -1681,7 +1681,7 @@ components:
       properties:
         id:        { type: string, format: uuid }
         code:      { type: string }
-        status:    { type: string, enum: [available, used] }
+        status:    { type: string, enum: [AVAILABLE, USED, EXPIRED] }
         usedAt:    { type: [string, 'null'], format: date-time }
         expiresAt: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
@@ -1936,7 +1936,7 @@ components:
           format: date-time
         status:
           type: string
-          enum: [scheduled, live, finished]
+          enum: [SCHEDULED, LIVE, FINISHED]
         homeTeam:
           description: "Null si el cruce aún no está definido"
           oneOf:
@@ -1964,7 +1964,7 @@ components:
       type: object
       required: [slug, name, order]
       properties:
-        slug:  { type: string, enum: [r32, r16, qf, sf, 3rd, final] }
+        slug:  { type: string, enum: [GROUP, R32, R16, QF, SF, THIRD, FINAL] }
         name:  { type: string }
         order: { type: integer }
 
