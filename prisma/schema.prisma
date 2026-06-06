@@ -96,8 +96,9 @@ model Match {
   scoreAway     Int?           @map("score_away")
   winnerTeamId  String?        @map("winner_team_id")
   winnerTeam    Team?          @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
-  status        String         @default("scheduled")
-  koPredictions KoPrediction[]
+  status          String         @default("scheduled")
+  externalMatchId String?        @unique @map("external_match_id")
+  koPredictions   KoPrediction[]
 
   @@map("matches")
 }
