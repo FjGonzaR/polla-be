@@ -273,42 +273,194 @@ paths:
   /admin/invitations:
     post:
       tags: [admin]
-      summary: Genera uno o varios códigos de invitación de un solo uso
+      summary: Genera un código de invitación de un solo uso
       operationId: postAdminInvitations
+      description: >
+        Crea un único código alfanumérico aleatorio con validez de 24 horas.
+        Solo accesible por admin.
       responses:
-        '200':
-          description: Pendiente de implementar
+        '201':
+          description: Código generado correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+              example:
+                id: "uuid"
+                code: "X7K2MP"
+                status: "available"
+                usedAt: null
+                expiresAt: "2026-06-12T15:00:00.000Z"
+                createdAt: "2026-06-11T15:00:00.000Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
     get:
       tags: [admin]
-      summary: Lista códigos de invitación con estado y participante asignado
+      summary: Lista todos los códigos de invitación
       operationId: getAdminInvitations
+      description: Soporta filtro opcional por estado. Solo accesible por admin.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [available, used]
+          description: "Filtra por estado. Si se omite retorna todos."
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Lista de invitaciones
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invitation'
+                  total:
+                    type: integer
+              example:
+                total: 2
+                data:
+                  - { id: "uuid1", code: "X7K2MP", status: "used",     usedAt: "2026-06-11T16:00:00Z", expiresAt: "2026-06-12T15:00:00Z", createdAt: "2026-06-11T15:00:00Z" }
+                  - { id: "uuid2", code: "A3BNQ9", status: "available", usedAt: null,                   expiresAt: "2026-06-12T16:00:00Z", createdAt: "2026-06-11T16:00:00Z" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /admin/groups:
     post:
       tags: [admin]
-      summary: Carga los 12 grupos con sus 4 equipos (solo una vez)
+      summary: Carga los 12 grupos del torneo con sus equipos
       operationId: postAdminGroups
+      description: >
+        Operación de una sola vez antes del inicio del torneo.
+        Acepta un array de 12 grupos, cada uno con sus 4 equipos.
+        Falla si los grupos ya existen.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [groups]
+              properties:
+                groups:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/GroupInput'
+                  minItems: 12
+                  maxItems: 12
       responses:
-        '200':
-          description: Pendiente de implementar
+        '201':
+          description: Grupos y equipos cargados correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, groupsCount, teamsCount]
+                properties:
+                  ok:          { type: boolean }
+                  groupsCount: { type: integer }
+                  teamsCount:  { type: integer }
+              example: { ok: true, groupsCount: 12, teamsCount: 48 }
+        '409':
+          description: Los grupos ya fueron cargados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Los grupos ya existen", code: "GROUPS_ALREADY_LOADED" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /admin/ko/matches:
     post:
       tags: [admin]
-      summary: Carga los partidos de una ronda KO con equipos conocidos
+      summary: Carga los partidos de una ronda KO
       operationId: postAdminKoMatches
+      description: >
+        Se llama ronda a ronda una vez que los cruces son oficiales.
+        Requiere el slug de la ronda y un array de partidos.
+        Cada partido incluye externalMatchId (ID 1–104 de la API externa worldcup2026)
+        para poder consultar resultados en tiempo real.
+        lockedAt se calcula automáticamente como scheduledAt - 30 minutos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [roundSlug, matches]
+              properties:
+                roundSlug:
+                  type: string
+                  enum: [r32, r16, qf, sf, 3rd, final]
+                matches:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/KoMatchInput'
+                  minItems: 1
+            example:
+              roundSlug: "r32"
+              matches:
+                - externalMatchId: 73
+                  matchNumber: 1
+                  homeTeamId: null
+                  awayTeamId: null
+                  homeTeamLabel: "Runner-up Group A"
+                  awayTeamLabel: "Runner-up Group B"
+                  scheduledAt: "2026-06-28T12:00:00Z"
+                - externalMatchId: 74
+                  matchNumber: 2
+                  homeTeamId: "uuid-col"
+                  awayTeamId: "uuid-bra"
+                  homeTeamLabel: null
+                  awayTeamLabel: null
+                  scheduledAt: "2026-06-28T16:00:00Z"
       responses:
-        '200':
-          description: Pendiente de implementar
+        '201':
+          description: Partidos cargados correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, roundSlug, matchesCount]
+                properties:
+                  ok:           { type: boolean }
+                  roundSlug:    { type: string }
+                  matchesCount: { type: integer }
+              example: { ok: true, roundSlug: "r32", matchesCount: 16 }
+        '404':
+          description: Ronda no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Ronda no encontrada", code: "ROUND_NOT_FOUND" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /admin/ko/matches/{matchId}/result:
     put:
       tags: [admin]
       summary: Carga o corrige el resultado oficial de un partido KO
       operationId: putAdminKoMatchResult
+      description: >
+        Registra el marcador a 120' y el equipo clasificado.
+        winnerTeamId es siempre obligatorio para evitar ambigüedad en casos
+        de penales donde el marcador no determina el ganador.
+        Tras guardar el resultado, el sistema actualiza status a finished.
       parameters:
         - name: matchId
           in: path
@@ -316,27 +468,169 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scoreHome, scoreAway, winnerTeamId]
+              properties:
+                scoreHome:    { type: integer, minimum: 0 }
+                scoreAway:    { type: integer, minimum: 0 }
+                winnerTeamId: { type: string, format: uuid }
+            example:
+              scoreHome: 1
+              scoreAway: 1
+              winnerTeamId: "uuid-col"
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Resultado registrado correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, matchId, scoreHome, scoreAway, winnerTeamId]
+                properties:
+                  ok:           { type: boolean }
+                  matchId:      { type: string, format: uuid }
+                  scoreHome:    { type: integer }
+                  scoreAway:    { type: integer }
+                  winnerTeamId: { type: string, format: uuid }
+              example: { ok: true, matchId: "uuid", scoreHome: 1, scoreAway: 1, winnerTeamId: "uuid-col" }
+        '404':
+          description: Partido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Partido no encontrado", code: "MATCH_NOT_FOUND" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
-  /admin/scoring-params:
+  /admin/scoring-params/{key}:
     put:
       tags: [admin]
-      summary: Edita los parámetros del sistema de puntuación
+      summary: Actualiza el valor de un parámetro de puntuación
       operationId: putAdminScoringParams
+      description: >
+        Edita un parámetro por su key. El recálculo de puntajes
+        se aplica en la siguiente corrida del cron o al consultar el scoreboard.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+            enum:
+              - pts_group_position_exact
+              - pts_group_position_partial
+              - bonus_group_complete
+              - pts_third_correct
+              - pts_ko_advances
+              - pts_ko_exact_score
+              - pts_dark_horse_per_round
+              - pts_disappointment_per_round
+              - mult_triple
+              - scale_r32
+              - scale_r16
+              - scale_qf
+              - scale_sf
+              - scale_final
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value: { type: number }
+            example: { value: 5 }
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Parámetro actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, key, value, updatedAt]
+                properties:
+                  ok:        { type: boolean }
+                  key:       { type: string }
+                  value:     { type: number }
+                  updatedAt: { type: string, format: date-time }
+              example: { ok: true, key: "pts_ko_exact_score", value: 5, updatedAt: "2026-06-11T15:00:00Z" }
+        '404':
+          description: Key no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Parámetro no encontrado", code: "PARAM_NOT_FOUND" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /admin/top8:
     put:
       tags: [admin]
-      summary: Actualiza el listado top 8 FIFA (foto fija pre-torneo)
+      summary: Define los 8 equipos top FIFA
       operationId: putAdminTop8
+      description: >
+        Foto fija para todo el torneo. Marca como isTop8 true los equipos
+        del array y false al resto. Se puede llamar varias veces para corregir.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [teamIds]
+              properties:
+                teamIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  minItems: 8
+                  maxItems: 8
+            example:
+              teamIds:
+                - "uuid-bra"
+                - "uuid-fra"
+                - "uuid-eng"
+                - "uuid-arg"
+                - "uuid-esp"
+                - "uuid-por"
+                - "uuid-bel"
+                - "uuid-ned"
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Top 8 actualizado correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, teams]
+                properties:
+                  ok: { type: boolean }
+                  teams:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, code]
+                      properties:
+                        id:   { type: string, format: uuid }
+                        name: { type: string }
+                        code: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   /admin/participants:
     get:
@@ -352,55 +646,386 @@ paths:
   /groups:
     get:
       tags: [groups]
-      summary: Lista los 12 grupos con sus equipos y flag is_top8
+      summary: Lista los 12 grupos con sus equipos
       operationId: getGroups
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Lista de grupos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Group'
+              example:
+                data:
+                  - id: "uuid-A"
+                    label: "A"
+                    name: "Grupo A"
+                    teams:
+                      - { id: "uuid-mex", name: "México",         code: "MEX", isTop8: false }
+                      - { id: "uuid-usa", name: "Estados Unidos", code: "USA", isTop8: true  }
+                      - { id: "uuid-col", name: "Colombia",       code: "COL", isTop8: false }
+                      - { id: "uuid-ecu", name: "Ecuador",        code: "ECU", isTop8: false }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /groups/predictions:
     post:
       tags: [groups]
-      summary: Guarda o actualiza el orden predicho de uno o varios grupos
+      summary: Guarda o actualiza predicciones de posiciones por grupo
       operationId: postGroupsPredictions
+      description: >
+        Acepta un array de uno o varios grupos. Hace upsert por grupo:
+        si el participante ya tenía predicciones para ese grupo las reemplaza.
+        Valida candado (antes del 11 de junio de 2026). Cada grupo debe incluir
+        las 4 posiciones completas — no se admiten grupos parciales.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [predictions]
+              properties:
+                predictions:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [groupId, rankings]
+                    properties:
+                      groupId:
+                        type: string
+                        format: uuid
+                      rankings:
+                        type: array
+                        minItems: 4
+                        maxItems: 4
+                        items:
+                          type: object
+                          required: [teamId, position]
+                          properties:
+                            teamId:   { type: string, format: uuid }
+                            position: { type: integer, minimum: 1, maximum: 4 }
+            example:
+              predictions:
+                - groupId: "uuid-A"
+                  rankings:
+                    - { teamId: "uuid-mex", position: 1 }
+                    - { teamId: "uuid-usa", position: 2 }
+                    - { teamId: "uuid-col", position: 3 }
+                    - { teamId: "uuid-ecu", position: 4 }
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Predicciones guardadas correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, savedGroups]
+                properties:
+                  ok:          { type: boolean }
+                  savedGroups: { type: integer }
+              example: { ok: true, savedGroups: 1 }
+        '400':
+          description: Payload inválido (posiciones duplicadas, equipos que no pertenecen al grupo, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Posiciones duplicadas en grupo A", code: "INVALID_RANKINGS" }
+        '423':
+          description: Candado activo — predicciones de grupos cerradas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Las predicciones de grupos están cerradas", code: "PREDICTIONS_LOCKED" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /groups/predictions/me:
     get:
       tags: [groups]
-      summary: Predicciones propias con flag group_complete y candidatos a tercero
+      summary: Mis predicciones de grupos con rankings completos
       operationId: getGroupsPredictionsMe
+      description: >
+        Retorna los 12 grupos con el orden predicho por el participante autenticado.
+        groupComplete indica si el grupo tiene las 4 posiciones predichas.
+        Grupos sin predicción retornan rankings vacío y groupComplete false.
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Predicciones propias
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, completedGroups]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GroupPrediction'
+                  completedGroups:
+                    type: integer
+                    description: "Cuántos de los 12 grupos tienen predicción completa"
+              example:
+                completedGroups: 1
+                data:
+                  - groupId: "uuid-A"
+                    label: "A"
+                    name: "Grupo A"
+                    groupComplete: true
+                    rankings:
+                      - { teamId: "uuid-mex", name: "México",         code: "MEX", isTop8: false, position: 1 }
+                      - { teamId: "uuid-usa", name: "Estados Unidos", code: "USA", isTop8: true,  position: 2 }
+                      - { teamId: "uuid-col", name: "Colombia",       code: "COL", isTop8: false, position: 3 }
+                      - { teamId: "uuid-ecu", name: "Ecuador",        code: "ECU", isTop8: false, position: 4 }
+                  - groupId: "uuid-B"
+                    label: "B"
+                    name: "Grupo B"
+                    groupComplete: false
+                    rankings: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /groups/predictions/friends:
     get:
       tags: [groups]
-      summary: Predicciones de todos los demás participantes (solo post-inicio)
+      summary: Predicciones de grupos de todos los demás participantes
       operationId: getGroupsPredictionsFriends
+      description: >
+        Solo disponible una vez iniciado el torneo (NOW() >= scheduledAt del primer partido).
+        Si el torneo no ha iniciado retorna available false con la fecha de apertura.
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Predicciones disponibles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available]
+                properties:
+                  available: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ParticipantPredictions'
+              examples:
+                disponible:
+                  value:
+                    available: true
+                    data:
+                      - participant: { id: "uuid-juan", name: "Juan" }
+                        predictions:
+                          - groupId: "uuid-A"
+                            label: "A"
+                            name: "Grupo A"
+                            groupComplete: true
+                            rankings:
+                              - { teamId: "uuid-bra", name: "Brasil", code: "BRA", isTop8: true, position: 1 }
+                no_disponible:
+                  value:
+                    available: false
+                    availableAt: "2026-06-11T17:00:00.000Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /groups/thirds:
+    get:
+      tags: [groups]
+      summary: Candidatos a mejores terceros del participante autenticado
+      operationId: getGroupsThirds
+      description: >
+        Retorna los equipos que el participante predijo en posición 3,
+        uno por grupo. Solo aparecen grupos con predicción completa.
+        El flag selected indica si ya fue marcado como mejor tercero
+        en POST /groups/thirds.
+      responses:
+        '200':
+          description: Lista de candidatos a tercero
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, selectedCount]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ThirdCandidate'
+                  selectedCount:
+                    type: integer
+                    description: "Cuántos de los candidatos están marcados como mejor tercero (máx 8)"
+              example:
+                selectedCount: 2
+                data:
+                  - { teamId: "uuid-col", name: "Colombia", code: "COL", groupId: "uuid-A", label: "A", selected: true  }
+                  - { teamId: "uuid-uru", name: "Uruguay",  code: "URU", groupId: "uuid-B", label: "B", selected: false }
+                  - { teamId: "uuid-sen", name: "Senegal",  code: "SEN", groupId: "uuid-C", label: "C", selected: true  }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [groups]
+      summary: Guarda o reemplaza la selección de mejores terceros
+      operationId: postGroupsThirds
+      description: >
+        Recibe exactamente 8 teamId. Todos deben ser equipos que el participante
+        predijo en posición 3 (candidatos de GET /groups/thirds).
+        Reemplaza cualquier selección previa (upsert completo).
+        Valida candado (antes del 11 de junio de 2026).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [teamIds]
+              properties:
+                teamIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  minItems: 8
+                  maxItems: 8
+            example:
+              teamIds:
+                - "uuid-col"
+                - "uuid-uru"
+                - "uuid-sen"
+                - "uuid-pol"
+                - "uuid-cro"
+                - "uuid-aus"
+                - "uuid-mar"
+                - "uuid-irn"
+      responses:
+        '200':
+          description: Mejores terceros guardados correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, selectedCount]
+                properties:
+                  ok:            { type: boolean }
+                  selectedCount: { type: integer }
+              example: { ok: true, selectedCount: 8 }
+        '400':
+          description: >
+            Payload inválido. Posibles causas: no son exactamente 8 equipos,
+            algún teamId no es candidato válido (no fue predicho en posición 3).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                no_es_candidato:
+                  value: { error: "El equipo uuid-bra no es un tercero válido en tus predicciones", code: "INVALID_THIRD_CANDIDATE" }
+                cantidad_incorrecta:
+                  value: { error: "Debes seleccionar exactamente 8 equipos", code: "INVALID_THIRDS_COUNT" }
+        '423':
+          description: Candado activo — predicciones de grupos cerradas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Las predicciones de grupos están cerradas", code: "PREDICTIONS_LOCKED" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ── KO ──────────────────────────────────────────────────────────────────────
 
   /ko/matches:
     get:
       tags: [ko]
-      summary: Lista todos los partidos KO agrupados por ronda
+      summary: Lista los partidos de una ronda KO
       operationId: getKoMatches
+      description: >
+        Requiere el parámetro de query roundSlug. Retorna los partidos de esa
+        ronda con resultado real (si existe) y la predicción propia del
+        participante autenticado por partido.
+        Si un partido tiene status finished o su scheduledAt + 90 min ya pasó
+        sin resultado, el BE consulta la API externa worldcup2026, guarda el
+        resultado y lo retorna.
+      parameters:
+        - name: roundSlug
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [r32, r16, qf, sf, 3rd, final]
+          description: "Ronda a consultar"
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Partidos de la ronda
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [round, matches]
+                properties:
+                  round:
+                    $ref: '#/components/schemas/KoRound'
+                  matches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/KoMatch'
+              example:
+                round: { slug: "r32", name: "Dieciseisavos", order: 1 }
+                matches:
+                  - id: "uuid-match-1"
+                    externalMatchId: 73
+                    matchNumber: 1
+                    scheduledAt: "2026-06-28T12:00:00Z"
+                    lockedAt: "2026-06-28T11:30:00Z"
+                    status: "scheduled"
+                    homeTeam: null
+                    awayTeam: null
+                    homeTeamLabel: "Runner-up Group A"
+                    awayTeamLabel: "Runner-up Group B"
+                    result: null
+                    myPrediction: null
+                  - id: "uuid-match-2"
+                    externalMatchId: 74
+                    matchNumber: 2
+                    scheduledAt: "2026-06-28T16:00:00Z"
+                    lockedAt: "2026-06-28T15:30:00Z"
+                    status: "finished"
+                    homeTeam: { id: "uuid-col", name: "Colombia", code: "COL" }
+                    awayTeam: { id: "uuid-bra", name: "Brasil",   code: "BRA" }
+                    homeTeamLabel: null
+                    awayTeamLabel: null
+                    result: { scoreHome: 1, scoreAway: 1, winnerTeamId: "uuid-col" }
+                    myPrediction:
+                      scoreHome: 2
+                      scoreAway: 0
+                      teamAdvancesId: "uuid-col"
+                      tripleActive: false
+                      lockedIn: true
+        '400':
+          description: roundSlug inválido o faltante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "roundSlug es requerido", code: "VALIDATION_ERROR" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /ko/matches/{matchId}:
     get:
       tags: [ko]
-      summary: Detalle de un partido KO con resultado real y predicción propia
+      summary: Detalle de un partido KO específico
       operationId: getKoMatch
+      description: >
+        Mismo schema que un item de GET /ko/matches. Útil para refrescar
+        un partido sin traer toda la ronda.
       parameters:
         - name: matchId
           in: path
@@ -410,13 +1035,33 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Detalle del partido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KoMatch'
+        '404':
+          description: Partido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Partido no encontrado", code: "MATCH_NOT_FOUND" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /ko/matches/{matchId}/predictions:
     post:
       tags: [ko]
-      summary: Registra predicción para un partido KO
+      summary: Registra la predicción de un partido KO
       operationId: postKoMatchPrediction
+      description: >
+        Guarda marcador a 120', equipo que avanza y si activa triple o nada.
+        Validaciones:
+          - Candado del partido (NOW() < lockedAt)
+          - teamAdvancesId debe ser homeTeamId o awayTeamId del partido
+          - Si tripleActive true, el participante debe tener usos restantes (máx 3 en todo el torneo)
+          - No se puede crear si el partido ya tiene resultado (status finished)
       parameters:
         - name: matchId
           in: path
@@ -424,13 +1069,84 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scoreHome, scoreAway, teamAdvancesId]
+              properties:
+                scoreHome:      { type: integer, minimum: 0 }
+                scoreAway:      { type: integer, minimum: 0 }
+                teamAdvancesId: { type: string, format: uuid }
+                tripleActive:   { type: boolean, default: false }
+            example:
+              scoreHome: 2
+              scoreAway: 0
+              teamAdvancesId: "uuid-col"
+              tripleActive: true
       responses:
-        '200':
-          description: Pendiente de implementar
+        '201':
+          description: Predicción registrada correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, tripleUsesRemaining]
+                properties:
+                  ok:                  { type: boolean }
+                  tripleUsesRemaining: { type: integer, description: "Usos de triple restantes (0–3)" }
+              example: { ok: true, tripleUsesRemaining: 2 }
+        '400':
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                equipo_invalido:
+                  value: { error: "teamAdvancesId no corresponde a un equipo del partido", code: "INVALID_TEAM_ADVANCES" }
+                triple_agotado:
+                  value: { error: "No tienes usos de triple o nada disponibles", code: "TRIPLE_USES_EXHAUSTED" }
+        '404':
+          description: Partido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Partido no encontrado", code: "MATCH_NOT_FOUND" }
+        '409':
+          description: Ya existe una predicción para este partido — usar PUT para editar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Ya existe una predicción para este partido", code: "PREDICTION_ALREADY_EXISTS" }
+        '423':
+          description: Partido bloqueado por candado o porque ya tiene resultado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                candado:
+                  value: { error: "El partido está cerrado para predicciones", code: "MATCH_LOCKED" }
+                con_resultado:
+                  value: { error: "El partido ya tiene resultado oficial", code: "MATCH_FINISHED" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
     put:
       tags: [ko]
       summary: Edita la predicción de un partido KO
       operationId: putKoMatchPrediction
+      description: >
+        Permite modificar marcador, equipo que avanza y tripleActive.
+        Validaciones:
+          - Candado del partido (NOW() < lockedAt)
+          - teamAdvancesId debe ser homeTeamId o awayTeamId del partido
+          - Si tripleActive cambia de false a true, valida usos restantes
+          - No se puede editar si el partido ya tiene resultado (status finished)
       parameters:
         - name: matchId
           in: path
@@ -438,31 +1154,76 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scoreHome, scoreAway, teamAdvancesId, tripleActive]
+              properties:
+                scoreHome:      { type: integer, minimum: 0 }
+                scoreAway:      { type: integer, minimum: 0 }
+                teamAdvancesId: { type: string, format: uuid }
+                tripleActive:   { type: boolean }
+            example:
+              scoreHome: 1
+              scoreAway: 1
+              teamAdvancesId: "uuid-col"
+              tripleActive: false
       responses:
         '200':
-          description: Pendiente de implementar
-
-  /ko/matches/{matchId}/predictions/triple:
-    put:
-      tags: [ko]
-      summary: Activa o desactiva el triple o nada para un partido
-      operationId: putKoMatchPredictionTriple
-      parameters:
-        - name: matchId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Pendiente de implementar
+          description: Predicción actualizada correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, tripleUsesRemaining]
+                properties:
+                  ok:                  { type: boolean }
+                  tripleUsesRemaining: { type: integer }
+              example: { ok: true, tripleUsesRemaining: 3 }
+        '400':
+          description: Payload inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                equipo_invalido:
+                  value: { error: "teamAdvancesId no corresponde a un equipo del partido", code: "INVALID_TEAM_ADVANCES" }
+                triple_agotado:
+                  value: { error: "No tienes usos de triple o nada disponibles", code: "TRIPLE_USES_EXHAUSTED" }
+        '404':
+          description: Predicción no encontrada — usar POST para crear
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "No existe predicción para este partido", code: "PREDICTION_NOT_FOUND" }
+        '423':
+          description: Partido bloqueado por candado o porque ya tiene resultado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                candado:
+                  value: { error: "El partido está cerrado para predicciones", code: "MATCH_LOCKED" }
+                con_resultado:
+                  value: { error: "El partido ya tiene resultado oficial", code: "MATCH_FINISHED" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   /ko/matches/{matchId}/predictions/friends:
     get:
       tags: [ko]
-      summary: Pronósticos de todos los demás para un partido (solo post-inicio)
+      summary: Predicciones de todos los demás participantes para un partido KO
       operationId: getKoMatchPredictionsFriends
+      description: >
+        Solo disponible una vez iniciado el partido (NOW() >= scheduledAt).
+        Si el partido no ha iniciado retorna available false con la fecha de apertura.
+        Incluye a todos los participantes, con prediction null si no han predicho.
       parameters:
         - name: matchId
           in: path
@@ -472,7 +1233,54 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Predicciones de amigos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [available, matchId]
+                properties:
+                  available:   { type: boolean }
+                  matchId:     { type: string, format: uuid }
+                  availableAt:
+                    type: [string, 'null']
+                    format: date-time
+                    description: "Solo presente cuando available es false"
+                  data:
+                    type: [array, 'null']
+                    description: "Solo presente cuando available es true"
+                    items:
+                      $ref: '#/components/schemas/FriendKoPrediction'
+              examples:
+                disponible:
+                  value:
+                    available: true
+                    matchId: "uuid-match-2"
+                    availableAt: null
+                    data:
+                      - participant: { id: "uuid-juan", name: "Juan" }
+                        prediction:
+                          scoreHome: 1
+                          scoreAway: 0
+                          teamAdvancesId: "uuid-col"
+                          tripleActive: false
+                      - participant: { id: "uuid-maria", name: "María" }
+                        prediction: null
+                no_disponible:
+                  value:
+                    available: false
+                    matchId: "uuid-match-1"
+                    availableAt: "2026-06-28T12:00:00Z"
+                    data: null
+        '404':
+          description: Partido no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { error: "Partido no encontrado", code: "MATCH_NOT_FOUND" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 
   # ── POWERUPS ────────────────────────────────────────────────────────────────
 
@@ -537,6 +1345,22 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  responses:
+    Unauthorized:
+      description: JWT ausente o inválido
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: { error: "No autorizado", code: "UNAUTHORIZED" }
+    Forbidden:
+      description: El usuario autenticado no tiene rol admin
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example: { error: "Acceso denegado", code: "FORBIDDEN" }
+
   schemas:
     ErrorResponse:
       type: object
@@ -595,3 +1419,253 @@ components:
           description: "JWT con expiración de 45 días"
         participant:
           $ref: '#/components/schemas/ParticipantMe'
+
+    Invitation:
+      type: object
+      required: [id, code, status, expiresAt, createdAt]
+      properties:
+        id:        { type: string, format: uuid }
+        code:      { type: string }
+        status:    { type: string, enum: [available, used] }
+        usedAt:    { type: [string, 'null'], format: date-time }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    TeamInput:
+      type: object
+      required: [name, code, isTop8]
+      properties:
+        name:   { type: string }
+        code:   { type: string, description: "Código ISO 3 letras, ej: COL" }
+        isTop8: { type: boolean }
+
+    GroupInput:
+      type: object
+      required: [label, name, teams]
+      properties:
+        label: { type: string, description: "Letra del grupo, ej: A" }
+        name:  { type: string, description: "Nombre completo, ej: Grupo A" }
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamInput'
+          minItems: 4
+          maxItems: 4
+
+    KoMatchInput:
+      type: object
+      required: [externalMatchId, matchNumber, scheduledAt]
+      description: >
+        Partido de fase KO. externalMatchId corresponde al ID numérico (1–104)
+        de la API externa (worldcup2026), usado para consultar resultados en tiempo real.
+        homeTeamId y awayTeamId son opcionales cuando los cruces aún no se conocen;
+        en ese caso se usan homeTeamLabel y awayTeamLabel como placeholders.
+      properties:
+        externalMatchId:
+          type: integer
+          description: "ID numérico de la API externa worldcup2026 (1–104)"
+        matchNumber:
+          type: integer
+          description: "Número de partido dentro de la ronda (1-based)"
+        homeTeamId:
+          type: [string, 'null']
+          format: uuid
+        awayTeamId:
+          type: [string, 'null']
+          format: uuid
+        homeTeamLabel:
+          type: [string, 'null']
+          description: "Placeholder cuando el equipo aún no se conoce, ej: Runner-up Group A"
+        awayTeamLabel:
+          type: [string, 'null']
+          description: "Placeholder cuando el equipo aún no se conoce, ej: Runner-up Group B"
+        scheduledAt:
+          type: string
+          format: date-time
+
+    Team:
+      type: object
+      required: [id, name, code, isTop8]
+      properties:
+        id:     { type: string, format: uuid }
+        name:   { type: string }
+        code:   { type: string, description: "Código ISO 3 letras, ej: COL" }
+        isTop8: { type: boolean }
+
+    Group:
+      type: object
+      required: [id, label, name, teams]
+      properties:
+        id:    { type: string, format: uuid }
+        label: { type: string, description: "Letra del grupo, ej: A" }
+        name:  { type: string, description: "Nombre completo, ej: Grupo A" }
+        teams:
+          type: array
+          items:
+            $ref: '#/components/schemas/Team'
+
+    GroupRanking:
+      type: object
+      description: Posición predicha de un equipo dentro de su grupo
+      required: [teamId, name, code, isTop8, position]
+      properties:
+        teamId:   { type: string, format: uuid }
+        name:     { type: string }
+        code:     { type: string }
+        isTop8:   { type: boolean }
+        position: { type: integer, minimum: 1, maximum: 4 }
+
+    GroupPrediction:
+      type: object
+      required: [groupId, label, name, groupComplete, rankings]
+      properties:
+        groupId:
+          type: string
+          format: uuid
+        label:
+          type: string
+        name:
+          type: string
+        groupComplete:
+          type: boolean
+          description: "true si las 4 posiciones del grupo están predichas"
+        rankings:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupRanking'
+          minItems: 0
+          maxItems: 4
+
+    ThirdCandidate:
+      type: object
+      description: >
+        Equipo que el participante predijo en posición 3 de su grupo.
+        Solo aparece si el grupo tiene predicción completa.
+      required: [teamId, name, code, groupId, label, selected]
+      properties:
+        teamId:   { type: string, format: uuid }
+        name:     { type: string }
+        code:     { type: string }
+        groupId:  { type: string, format: uuid }
+        label:    { type: string, description: "Letra del grupo al que pertenece" }
+        selected: { type: boolean, description: "true si fue marcado como mejor tercero" }
+
+    ParticipantPredictions:
+      type: object
+      required: [participant, predictions]
+      properties:
+        participant:
+          type: object
+          required: [id, name]
+          properties:
+            id:   { type: string, format: uuid }
+            name: { type: string }
+        predictions:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupPrediction'
+
+    KoResult:
+      type: object
+      description: Resultado oficial del partido. Null si aún no ha terminado.
+      required: [scoreHome, scoreAway, winnerTeamId]
+      properties:
+        scoreHome:    { type: integer, minimum: 0 }
+        scoreAway:    { type: integer, minimum: 0 }
+        winnerTeamId: { type: string, format: uuid }
+
+    KoMyPrediction:
+      type: object
+      description: Predicción propia del participante autenticado. Null si no ha predicho.
+      required: [scoreHome, scoreAway, teamAdvancesId, tripleActive, lockedIn]
+      properties:
+        scoreHome:      { type: integer, minimum: 0 }
+        scoreAway:      { type: integer, minimum: 0 }
+        teamAdvancesId: { type: string, format: uuid }
+        tripleActive:   { type: boolean }
+        lockedIn:
+          type: boolean
+          description: "true si NOW() >= lockedAt. El frontend usa esto para mostrar el candado."
+
+    KoTeam:
+      type: object
+      description: Equipo del partido. Null si el cruce aún no está definido.
+      required: [id, name, code]
+      properties:
+        id:   { type: string, format: uuid }
+        name: { type: string }
+        code: { type: string }
+
+    KoMatch:
+      type: object
+      required: [id, externalMatchId, matchNumber, scheduledAt, lockedAt, status, homeTeamLabel, awayTeamLabel]
+      properties:
+        id:
+          type: string
+          format: uuid
+        externalMatchId:
+          type: integer
+          description: "ID numérico en la API externa worldcup2026 (1–104)"
+        matchNumber:
+          type: integer
+        scheduledAt:
+          type: string
+          format: date-time
+        lockedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [scheduled, live, finished]
+        homeTeam:
+          description: "Null si el cruce aún no está definido"
+          oneOf:
+            - $ref: '#/components/schemas/KoTeam'
+            - type: 'null'
+        awayTeam:
+          oneOf:
+            - $ref: '#/components/schemas/KoTeam'
+            - type: 'null'
+        homeTeamLabel:
+          type: [string, 'null']
+          description: "Placeholder cuando homeTeam es null, ej: Runner-up Group A"
+        awayTeamLabel:
+          type: [string, 'null']
+        result:
+          oneOf:
+            - $ref: '#/components/schemas/KoResult'
+            - type: 'null'
+        myPrediction:
+          oneOf:
+            - $ref: '#/components/schemas/KoMyPrediction'
+            - type: 'null'
+
+    KoRound:
+      type: object
+      required: [slug, name, order]
+      properties:
+        slug:  { type: string, enum: [r32, r16, qf, sf, 3rd, final] }
+        name:  { type: string }
+        order: { type: integer }
+
+    FriendKoPrediction:
+      type: object
+      required: [participant, prediction]
+      properties:
+        participant:
+          type: object
+          required: [id, name]
+          properties:
+            id:   { type: string, format: uuid }
+            name: { type: string }
+        prediction:
+          description: "Null si el participante no ha predicho ese partido"
+          oneOf:
+            - type: object
+              required: [scoreHome, scoreAway, teamAdvancesId, tripleActive]
+              properties:
+                scoreHome:      { type: integer }
+                scoreAway:      { type: integer }
+                teamAdvancesId: { type: string, format: uuid }
+                tripleActive:   { type: boolean }
+            - type: 'null'
