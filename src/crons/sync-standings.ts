@@ -26,6 +26,7 @@ export async function syncStandings(): Promise<void> {
         gf: number
         ga: number
         gd: number
+        mp: number
       }> = []
 
       for (const teamExterno of grupoExterno.teams) {
@@ -44,6 +45,7 @@ export async function syncStandings(): Promise<void> {
           gf: parseInt(teamExterno.gf),
           ga: parseInt(teamExterno.ga),
           gd: parseInt(teamExterno.gd),
+          mp: parseInt(teamExterno.mp),
         })
       }
 
@@ -62,7 +64,7 @@ export async function syncStandings(): Promise<void> {
       })
 
       for (let i = 0; i < ordenados.length; i++) {
-        const { team, pts, gf, ga } = ordenados[i]
+        const { team, pts, gf, ga, mp } = ordenados[i]
         const realPosition = i + 1
 
         await prisma.groupStanding.upsert({
@@ -71,6 +73,7 @@ export async function syncStandings(): Promise<void> {
             pts,
             goalsFor: gf,
             goalsAgainst: ga,
+            matchesPlayed: mp,
             realPosition,
             groupId: group.id,
           },
@@ -80,6 +83,7 @@ export async function syncStandings(): Promise<void> {
             pts,
             goalsFor: gf,
             goalsAgainst: ga,
+            matchesPlayed: mp,
             realPosition,
             qualifiedAsThird: false,
           },
