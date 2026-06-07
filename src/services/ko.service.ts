@@ -5,9 +5,11 @@ import { getParam } from './scoring.service.js'
 import {
   toKoMatchDto,
   toKoRoundDto,
+  toKoFriendDto,
   type KoMatchDto,
   type KoPointsEarnedDto,
   type KoRoundDto,
+  type KoFriendDto,
 } from '../mappers/ko.mapper.js'
 
 const KO_ROUND_SLUGS: RoundSlug[] = ['R32', 'R16', 'QF', 'SF', 'THIRD', 'FINAL']
@@ -117,6 +119,137 @@ export async function findKoMatches(
   )
 
   return { round: toKoRoundDto(round), matches }
+}
+
+async function countTripleUses(participantId: string, excludeMatchId?: string): Promise<number> {
+  return prisma.koPrediction.count({
+    where: {
+      participantId,
+      tripleActive: true,
+      ...(excludeMatchId ? { matchId: { not: excludeMatchId } } : {}),
+    },
+  })
+}
+
+interface KoPredictionBody {
+  scoreHome: number
+  scoreAway: number
+  teamAdvancesId: string
+  tripleActive: boolean
+}
+
+async function fetchMatchForWrite(matchId: string) {
+  const match = await prisma.match.findUnique({ where: { id: matchId } })
+  if (!match) throw new AppError(404, 'MATCH_NOT_FOUND', 'Match not found')
+  if (match.status === 'FINISHED') throw new AppError(423, 'MATCH_FINISHED', 'Match already has an official result')
+  if (match.lockedAt != null && new Date() >= match.lockedAt) throw new AppError(423, 'MATCH_LOCKED', 'Match is closed for predictions')
+  return match
+}
+
+export async function createKoPrediction(
+  matchId: string,
+  participantId: string,
+  body: KoPredictionBody,
+): Promise<{ ok: true; tripleUsesRemaining: number }> {
+  const match = await fetchMatchForWrite(matchId)
+
+  if (body.teamAdvancesId !== match.homeTeamId && body.teamAdvancesId !== match.awayTeamId) {
+    throw new AppError(400, 'INVALID_TEAM_ADVANCES', 'teamAdvancesId does not match a team in this match')
+  }
+
+  if (body.tripleActive) {
+    const used = await countTripleUses(participantId)
+    if (used >= 3) throw new AppError(400, 'TRIPLE_USES_EXHAUSTED', 'No triple or nothing uses remaining')
+  }
+
+  const existing = await prisma.koPrediction.findUnique({
+    where: { participantId_matchId: { participantId, matchId } },
+  })
+  if (existing) throw new AppError(409, 'PREDICTION_ALREADY_EXISTS', 'A prediction already exists for this match')
+
+  await prisma.koPrediction.create({
+    data: {
+      participantId,
+      matchId,
+      scoreHome: body.scoreHome,
+      scoreAway: body.scoreAway,
+      teamAdvancesId: body.teamAdvancesId,
+      tripleActive: body.tripleActive,
+    },
+  })
+
+  const used = await countTripleUses(participantId)
+  return { ok: true, tripleUsesRemaining: 3 - used }
+}
+
+export async function updateKoPrediction(
+  matchId: string,
+  participantId: string,
+  body: KoPredictionBody,
+): Promise<{ ok: true; tripleUsesRemaining: number }> {
+  const match = await fetchMatchForWrite(matchId)
+
+  if (body.teamAdvancesId !== match.homeTeamId && body.teamAdvancesId !== match.awayTeamId) {
+    throw new AppError(400, 'INVALID_TEAM_ADVANCES', 'teamAdvancesId does not match a team in this match')
+  }
+
+  const existing = await prisma.koPrediction.findUnique({
+    where: { participantId_matchId: { participantId, matchId } },
+  })
+  if (!existing) throw new AppError(404, 'PREDICTION_NOT_FOUND', 'No prediction found for this match')
+
+  if (body.tripleActive && !existing.tripleActive) {
+    const usedElsewhere = await countTripleUses(participantId, matchId)
+    if (usedElsewhere >= 3) throw new AppError(400, 'TRIPLE_USES_EXHAUSTED', 'No triple or nothing uses remaining')
+  }
+
+  await prisma.koPrediction.update({
+    where: { participantId_matchId: { participantId, matchId } },
+    data: {
+      scoreHome: body.scoreHome,
+      scoreAway: body.scoreAway,
+      teamAdvancesId: body.teamAdvancesId,
+      tripleActive: body.tripleActive,
+    },
+  })
+
+  const used = await countTripleUses(participantId)
+  return { ok: true, tripleUsesRemaining: 3 - used }
+}
+
+type KoFriendsPredictionsDto =
+  | { available: false; matchId: string; availableAt: Date | null; data: null }
+  | { available: true; matchId: string; availableAt: null; data: KoFriendDto[] }
+
+export async function findKoMatchFriendsPredictions(
+  matchId: string,
+  participantId: string,
+): Promise<KoFriendsPredictionsDto> {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { id: true, scheduledAt: true },
+  })
+  if (!match) throw new AppError(404, 'MATCH_NOT_FOUND', 'Match not found')
+
+  if (new Date() < match.scheduledAt) {
+    return { available: false, matchId, availableAt: match.scheduledAt, data: null }
+  }
+
+  const [others, predictions] = await Promise.all([
+    prisma.participant.findMany({
+      where: { id: { not: participantId } },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.koPrediction.findMany({
+      where: { matchId, participantId: { not: participantId } },
+    }),
+  ])
+
+  const predictionMap = new Map(predictions.map((p) => [p.participantId, p]))
+  const data = others.map((p) => toKoFriendDto(p, predictionMap.get(p.id) ?? null))
+
+  return { available: true, matchId, availableAt: null, data }
 }
 
 export async function findKoMatch(matchId: string, participantId: string): Promise<KoMatchDto> {

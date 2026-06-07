@@ -56,6 +56,35 @@ type MatchWithTeams = Match & {
   awayTeam: Team | null
 }
 
+export interface KoFriendPredictionDto {
+  scoreHome: number
+  scoreAway: number
+  teamAdvancesId: string
+  tripleActive: boolean
+}
+
+export interface KoFriendDto {
+  participant: { id: string; name: string }
+  prediction: KoFriendPredictionDto | null
+}
+
+export function toKoFriendDto(
+  participant: { id: string; name: string },
+  prediction: KoPrediction | null,
+): KoFriendDto {
+  return {
+    participant: { id: participant.id, name: participant.name },
+    prediction: prediction
+      ? {
+          scoreHome: prediction.scoreHome,
+          scoreAway: prediction.scoreAway,
+          teamAdvancesId: prediction.teamAdvancesId,
+          tripleActive: prediction.tripleActive,
+        }
+      : null,
+  }
+}
+
 export function toKoTeamDto(team: Team): KoTeamDto {
   return { id: team.id, name: team.name, code: team.code }
 }
