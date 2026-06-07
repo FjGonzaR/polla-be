@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { findAllGroups, upsertGroupPredictions, findMyGroupPredictions, findFriendsGroupPredictions } from '../services/groups.service.js'
+import { findMyThirds, saveThirds } from '../services/thirds.service.js'
 import { isGroupPhaseLocked } from '../lib/lock.js'
 
 export default async function groupRoutes(fastify: FastifyInstance) {
@@ -17,6 +18,21 @@ export default async function groupRoutes(fastify: FastifyInstance) {
 
   fastify.get('/predictions/friends', async (request, reply) => {
     const result = await findFriendsGroupPredictions(request.user.id)
+    return reply.send(result)
+  })
+
+  fastify.get('/thirds', async (request, reply) => {
+    const result = await findMyThirds(request.user.id)
+    return reply.send(result)
+  })
+
+  fastify.post('/thirds', async (request, reply) => {
+    const locked = await isGroupPhaseLocked()
+    if (locked) {
+      return reply.code(423).send({ code: 'PREDICTIONS_LOCKED', error: 'Predictions are locked' })
+    }
+    const { teamIds } = request.body as { teamIds: string[] }
+    const result = await saveThirds(request.user.id, teamIds)
     return reply.send(result)
   })
 
