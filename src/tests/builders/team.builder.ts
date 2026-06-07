@@ -3,7 +3,7 @@ import { prisma } from '../../lib/prisma.js'
 
 export class TeamBuilder {
   private name = 'Team'
-  private code = 'TEM'
+  private code = Math.random().toString(36).slice(2, 5).toUpperCase()
   private groupId: string | null = null
   private isTop8 = false
 
