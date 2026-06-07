@@ -35,12 +35,12 @@ enum RoundSlug {
 }
 
 model Invitation {
-  id          String       @id @default(uuid())
-  code        String       @unique
+  id          String           @id @default(uuid())
+  code        String           @unique
   status      InvitationStatus @default(AVAILABLE)
-  usedAt      DateTime?    @map("used_at")
-  expiresAt   DateTime?    @map("expires_at")
-  createdAt   DateTime     @default(now()) @map("created_at")
+  usedAt      DateTime?        @map("used_at")
+  expiresAt   DateTime?        @map("expires_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
   participant Participant?
 
   @@map("invitations")
@@ -98,32 +98,33 @@ model Team {
 }
 
 model Round {
-  id         String  @id @default(uuid())
+  id         String    @id @default(uuid())
   name       String
   slug       RoundSlug @unique
   order      Int
-  matchCount Int     @map("match_count")
+  matchCount Int       @map("match_count")
+  lockedAt   DateTime? @map("locked_at")
   matches    Match[]
 
   @@map("rounds")
 }
 
 model Match {
-  id            String         @id @default(uuid())
-  roundId       String         @map("round_id")
-  round         Round          @relation(fields: [roundId], references: [id])
-  matchNumber   Int            @map("match_number")
-  homeTeamId    String?        @map("home_team_id")
-  homeTeam      Team?          @relation("HomeTeam", fields: [homeTeamId], references: [id])
-  awayTeamId    String?        @map("away_team_id")
-  awayTeam      Team?          @relation("AwayTeam", fields: [awayTeamId], references: [id])
-  scheduledAt   DateTime       @map("scheduled_at")
-  lockedAt      DateTime?      @map("locked_at")
-  reminderSent  Boolean        @default(false) @map("reminder_sent")
-  scoreHome     Int?           @map("score_home")
-  scoreAway     Int?           @map("score_away")
-  winnerTeamId  String?        @map("winner_team_id")
-  winnerTeam    Team?          @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
+  id              String         @id @default(uuid())
+  roundId         String         @map("round_id")
+  round           Round          @relation(fields: [roundId], references: [id])
+  matchNumber     Int            @map("match_number")
+  homeTeamId      String?        @map("home_team_id")
+  homeTeam        Team?          @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId      String?        @map("away_team_id")
+  awayTeam        Team?          @relation("AwayTeam", fields: [awayTeamId], references: [id])
+  scheduledAt     DateTime       @map("scheduled_at")
+  lockedAt        DateTime?      @map("locked_at")
+  reminderSent    Boolean        @default(false) @map("reminder_sent")
+  scoreHome       Int?           @map("score_home")
+  scoreAway       Int?           @map("score_away")
+  winnerTeamId    String?        @map("winner_team_id")
+  winnerTeam      Team?          @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
   status          MatchStatus    @default(SCHEDULED)
   externalMatchId String?        @unique @map("external_match_id")
   koPredictions   KoPrediction[]
