@@ -7,6 +7,7 @@ import prismaPlugin from './plugins/prisma.js'
 import authenticatePlugin from './plugins/authenticate.js'
 import healthRoutes from './routes/health.js'
 import authRoutes from './routes/auth.js'
+import groupRoutes from './routes/groups.js'
 import { syncStandings } from './crons/sync-standings.js'
 import { syncKoResults } from './crons/sync-ko-results.js'
 import { AppError } from './lib/errors.js'
@@ -23,6 +24,7 @@ export async function buildServer(): Promise<FastifyInstance> {
   server.register(authenticatePlugin)
   server.register(healthRoutes, { prefix: '/health' })
   server.register(authRoutes, { prefix: '/auth' })
+  server.register(groupRoutes, { prefix: '/groups' })
 
   server.setErrorHandler((error, _request, reply) => {
     if (error instanceof AppError) {
