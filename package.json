@@ -6,22 +6,31 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@fastify/cookie": "^9.4.0",
     "@fastify/cors": "^9.0.1",
     "@prisma/client": "^5.22.0",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
     "fastify-plugin": "^4.5.1",
+    "google-auth-library": "^10.7.0",
+    "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.10.0",
     "@types/node-cron": "^3.0.11",
+    "@vitest/coverage-v8": "^4.1.8",
     "prisma": "^5.22.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.8"
   },
   "engines": {
     "node": ">=22"

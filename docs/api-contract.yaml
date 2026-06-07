@@ -27,7 +27,7 @@ tags:
     description: Tabla de posiciones y podio
 
 security:
-  - bearerAuth: []
+  - cookieAuth: []
 
 paths:
   /health:
@@ -66,16 +66,24 @@ paths:
   /auth/google:
     post:
       tags: [auth]
-      summary: Login o signup con Google SSO
+      summary: Login o signup con Google
       operationId: postAuthGoogle
       security: []
       description: >
-        Recibe el ID token de Google. Si el email no existe crea el participante
-        (201). Si ya existe loguea (200). El frontend usa hasJoined y hasPhone
-        para determinar el siguiente paso:
-          hasJoined false → pantalla de código de invitación
-          hasJoined true + hasPhone false → pantalla de teléfono
-          hasJoined true + hasPhone true → home
+        Endpoint unificado de autenticación. El FE obtiene el `credential` (ID token) vía
+        @react-oauth/google y lo envía aquí.
+
+        - **Login** (usuario existente): solo `credential`. El backend verifica el token,
+          encuentra al participante y emite la cookie de sesión.
+
+        - **Signup** (usuario nuevo): `credential` + `code` + `phone`. El backend verifica el
+          token, valida el código de invitación y crea el participante en una transacción atómica.
+
+        - **Falta de invitación**: si el usuario no existe y no se envían `code`/`phone`,
+          retorna 403 NEEDS_SIGNUP — el FE debe mostrar el formulario de registro.
+
+        La sesión se establece mediante una cookie HttpOnly `session` (JWT firmado, 30 días).
+        El navegador la envía automáticamente en cada request posterior.
       requestBody:
         required: true
         content:
@@ -86,187 +94,100 @@ paths:
               properties:
                 credential:
                   type: string
-                  description: ID token obtenido del flujo OAuth de Google
-      responses:
-        '200':
-          description: Login exitoso
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-              example:
-                token: "eyJhbGci..."
-                participant:
-                  id: "123e4567-e89b-12d3-a456-426614174000"
-                  name: "Luisa Gómez"
-                  email: "luisa@gmail.com"
-                  role: "PARTICIPANT"
-                  hasJoined: true
-                  hasPhone: true
-        '201':
-          description: Signup exitoso — usuario recién creado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AuthResponse'
-              example:
-                token: "eyJhbGci..."
-                participant:
-                  id: "123e4567-e89b-12d3-a456-426614174000"
-                  name: "Luisa Gómez"
-                  email: "luisa@gmail.com"
-                  role: "PARTICIPANT"
-                  hasJoined: false
-                  hasPhone: false
-        '400':
-          description: Falta el campo credential
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "credential es requerido"
-                code: "VALIDATION_ERROR"
-        '401':
-          description: ID token de Google inválido o expirado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "Token de Google inválido"
-                code: "INVALID_GOOGLE_TOKEN"
-
-  /auth/join:
-    post:
-      tags: [auth]
-      summary: Asocia al participante a la polla mediante código de invitación
-      operationId: postAuthJoin
-      description: >
-        Se llama cuando hasJoined es false. Valida el código, lo marca como usado
-        y asocia la invitación al participante. Requiere JWT.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [code]
-              properties:
+                  description: ID token obtenido del flujo OAuth de Google (@react-oauth/google)
                 code:
                   type: string
-      responses:
-        '200':
-          description: Código válido, participante asociado a la polla
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [ok, hasJoined]
-                properties:
-                  ok:        { type: boolean }
-                  hasJoined: { type: boolean }
-              example:
-                ok: true
-                hasJoined: true
-        '400':
-          description: Falta el campo code
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "code es requerido"
-                code: "VALIDATION_ERROR"
-        '401':
-          description: JWT ausente o inválido
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "No autorizado"
-                code: "UNAUTHORIZED"
-        '404':
-          description: Código no encontrado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "Código no encontrado"
-                code: "INVITE_NOT_FOUND"
-        '409':
-          description: Código ya utilizado
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "Código ya utilizado"
-                code: "INVITE_ALREADY_USED"
-
-  /auth/phone:
-    post:
-      tags: [auth]
-      summary: Registra el número de teléfono del participante
-      operationId: postAuthPhone
-      description: >
-        Se llama cuando hasPhone es false. El número se usa para los recordatorios
-        de WhatsApp vía Baileys. Formato E.164 requerido. Requiere JWT.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [phone]
-              properties:
+                  description: Código de invitación. Requerido solo para signup (usuario nuevo).
                 phone:
                   type: string
                   pattern: '^\+[1-9]\d{7,14}$'
-                  description: "Número en formato E.164, ej: +573001234567"
+                  description: "Número E.164 ej: +573001234567. Requerido solo para signup."
+            examples:
+              login:
+                summary: Login de usuario existente
+                value: { credential: "eyJhbGci..." }
+              signup:
+                summary: Signup de usuario nuevo
+                value: { credential: "eyJhbGci...", code: "X7K2MP", phone: "+573001234567" }
       responses:
         '200':
-          description: Teléfono registrado correctamente
+          description: Login o signup exitoso. Emite cookie de sesión HttpOnly.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "session=eyJ...; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax"
           content:
             application/json:
               schema:
-                type: object
-                required: [ok, phone]
-                properties:
-                  ok:    { type: boolean }
-                  phone: { type: string }
+                $ref: '#/components/schemas/AuthParticipant'
               example:
-                ok: true
-                phone: "+573001234567"
+                id: "123e4567-e89b-12d3-a456-426614174000"
+                name: "Luisa Gómez"
+                email: "luisa@gmail.com"
+                role: "PARTICIPANT"
         '400':
           description: Formato de teléfono inválido
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "Formato inválido. Usa E.164 ej: +573001234567"
-                code: "INVALID_PHONE"
+              example: { code: "INVALID_PHONE", message: "Formato inválido. Usa E.164, ej: +573001234567" }
         '401':
-          description: JWT ausente o inválido
+          description: Credential de Google inválido o expirado
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "No autorizado"
-                code: "UNAUTHORIZED"
+              example: { code: "INVALID_CREDENTIAL", message: "Credential de Google inválido o expirado" }
+        '403':
+          description: Usuario no existe y no se enviaron code/phone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { code: "NEEDS_SIGNUP", message: "Necesitas un código de invitación para registrarte" }
+        '404':
+          description: Código de invitación no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { code: "INVITE_NOT_FOUND", message: "Código de invitación no encontrado" }
         '409':
-          description: Teléfono ya registrado en otro participante
+          description: Código ya utilizado/expirado, o Google ID ya registrado
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example:
-                error: "Teléfono ya registrado"
-                code: "PHONE_ALREADY_EXISTS"
+              examples:
+                codigo_usado:
+                  value: { code: "INVITE_USED_OR_EXPIRED", message: "Código ya utilizado o expirado" }
+                ya_registrado:
+                  value: { code: "ALREADY_REGISTERED", message: "Ya existe un participante con este Google ID" }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Cierra la sesión del participante
+      operationId: postAuthLogout
+      security: []
+      responses:
+        '200':
+          description: Sesión cerrada. Cookie eliminada.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "session=; Max-Age=0; HttpOnly; Path=/"
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+              example: { ok: true }
 
   # ── ADMIN ───────────────────────────────────────────────────────────────────
 
@@ -1595,38 +1516,46 @@ paths:
 
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: >
+        Cookie HttpOnly `session` emitida por POST /auth/google.
+        JWT firmado con JWT_SECRET, expira en 30 días.
+        El navegador la envía automáticamente — no requiere header explícito.
 
   responses:
     Unauthorized:
-      description: JWT ausente o inválido
+      description: Cookie de sesión ausente o inválida
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-          example: { error: "No autorizado", code: "UNAUTHORIZED" }
+          examples:
+            sin_cookie:
+              value: { code: "MISSING_SESSION", message: "Sesión requerida" }
+            cookie_invalida:
+              value: { code: "INVALID_SESSION", message: "Sesión inválida o expirada" }
     Forbidden:
       description: El usuario autenticado no tiene rol admin
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
-          example: { error: "Acceso denegado", code: "FORBIDDEN" }
+          example: { code: "FORBIDDEN", message: "Acceso denegado" }
 
   schemas:
     ErrorResponse:
       type: object
-      required: [error, code]
+      required: [code, message]
       properties:
-        error:
-          type: string
-          example: Recurso no encontrado
         code:
           type: string
           example: NOT_FOUND
+        message:
+          type: string
+          example: Recurso no encontrado
 
     HealthResponse:
       type: object
@@ -1643,9 +1572,9 @@ components:
           format: date-time
           example: '2026-06-06T17:00:00.000Z'
 
-    ParticipantMe:
+    AuthParticipant:
       type: object
-      required: [id, name, email, role, hasJoined, hasPhone]
+      required: [id, name, email, role]
       properties:
         id:
           type: string
@@ -1658,22 +1587,6 @@ components:
         role:
           type: string
           enum: [PARTICIPANT, ADMIN]
-        hasJoined:
-          type: boolean
-          description: "true si ya fue asociado a un código de invitación"
-        hasPhone:
-          type: boolean
-          description: "true si ya registró número de WhatsApp"
-
-    AuthResponse:
-      type: object
-      required: [token, participant]
-      properties:
-        token:
-          type: string
-          description: "JWT con expiración de 45 días"
-        participant:
-          $ref: '#/components/schemas/ParticipantMe'
 
     Invitation:
       type: object
