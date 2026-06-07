@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
-import { recalculateAllScores } from './score-calculation.service.js'
+import { persistKoMatchScoreEvents, persistPowerupKoMatchEvents } from './score-calculation.service.js'
 import { toInvitationDto, toScoringParamDto, type InvitationDto, type ScoringParamDto } from '../mappers/admin.mapper.js'
 
 export async function createInvitations(count: number): Promise<InvitationDto[]> {
@@ -53,7 +53,8 @@ export async function setMatchResult(matchId: string, body: MatchResultInput): P
     },
   })
 
-  await recalculateAllScores()
+  await persistKoMatchScoreEvents(matchId)
+  await persistPowerupKoMatchEvents(matchId)
 }
 
 export async function updateScoringParam(key: string, value: number): Promise<ScoringParamDto> {

@@ -1,6 +1,7 @@
 import { RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
+import { isGroupFinalized, persistGroupScoreEvents } from '../services/score-calculation.service.js'
 
 export async function syncStandings(): Promise<void> {
   console.info('[sync-standings] Iniciando sincronización...')
@@ -92,6 +93,11 @@ export async function syncStandings(): Promise<void> {
       }
 
       gruposSincronizados++
+
+      const updatedStandings = await prisma.groupStanding.findMany({ where: { groupId: group.id } })
+      if (isGroupFinalized(group, updatedStandings)) {
+        await persistGroupScoreEvents(group.id)
+      }
     }
 
     console.info(
