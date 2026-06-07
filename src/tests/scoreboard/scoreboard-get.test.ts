@@ -3,6 +3,78 @@ import { buildServer } from '../../server.js'
 import { prisma } from '../../lib/prisma.js'
 import { createAuthenticatedParticipant } from '../helpers/auth.helper.js'
 import { buildParticipant } from '../builders/participant.builder.js'
+import {
+  persistGroupScoreEvents,
+  persistKoMatchScoreEvents,
+  persistPowerupKoMatchEvents,
+} from '../../services/score-calculation.service.js'
+
+// ─── helpers ────────────────────────────────────────────────────────────────
+
+async function seedScoringParams(overrides: Record<string, number> = {}) {
+  const defaults: Record<string, number> = {
+    pts_group_position_exact: 3,
+    bonus_group_complete: 5,
+    pts_third_correct: 2,
+    pts_ko_advances: 4,
+    pts_ko_exact_score: 6,
+    mult_triple: 3,
+    pts_dark_horse_per_round: 8,
+    pts_disappointment_per_round: 5,
+    scale_r32: 1,
+    scale_r16: 1.5,
+    scale_qf: 2,
+    scale_sf: 3,
+    scale_final: 4,
+  }
+  const params = { ...defaults, ...overrides }
+  await prisma.scoringParam.createMany({
+    data: Object.entries(params).map(([key, value]) => ({
+      key,
+      value,
+      description: key,
+    })),
+  })
+}
+
+async function buildFinalizedGroup(label = 'A') {
+  const group = await prisma.group.create({
+    data: {
+      name: `Group ${label}`,
+      label,
+      lastMatchAt: new Date(Date.now() - 3 * 60 * 60 * 1000), // 3h ago → finalized
+    },
+  })
+  const teams = await Promise.all(
+    [1, 2, 3, 4].map((i) =>
+      prisma.team.create({ data: { name: `Team ${label}${i}`, code: `${label}T${i}`, groupId: group.id } }),
+    ),
+  )
+  return { group, teams }
+}
+
+async function buildKoMatch(roundSlug = 'R32', matchNumber = 1) {
+  const round = await prisma.round.upsert({
+    where: { slug: roundSlug as never },
+    create: { name: roundSlug, slug: roundSlug as never, order: 1, matchCount: 16 },
+    update: {},
+  })
+  const group = await prisma.group.create({ data: { name: 'KO Group', label: 'Z' } })
+  const home = await prisma.team.create({ data: { name: 'Home FC', code: 'HFC', groupId: group.id } })
+  const away = await prisma.team.create({ data: { name: 'Away FC', code: 'AFC', groupId: group.id } })
+  const match = await prisma.match.create({
+    data: {
+      roundId: round.id,
+      matchNumber,
+      scheduledAt: new Date('2026-07-01T18:00:00Z'),
+      homeTeamId: home.id,
+      awayTeamId: away.id,
+    },
+  })
+  return { match, home, away, round }
+}
+
+// ─── tests ──────────────────────────────────────────────────────────────────
 
 describe('GET /scoreboard', () => {
   it('no auth → 401', async () => {
@@ -39,14 +111,9 @@ describe('GET /scoreboard', () => {
       ],
     })
 
-    // Give p2 2 exact KO scores and p1 1 exact KO score via KoPredictions
-    const round = await prisma.round.create({
-      data: { name: 'Round of 32', slug: 'R32', order: 1, matchCount: 16 },
-    })
+    const round = await prisma.round.create({ data: { name: 'Round of 32', slug: 'R32', order: 1, matchCount: 16 } })
     const group = await prisma.group.create({ data: { name: 'Group A', label: 'A' } })
-    const team = await prisma.team.create({
-      data: { name: 'Team X', code: 'TXX', groupId: group.id },
-    })
+    const team = await prisma.team.create({ data: { name: 'Team X', code: 'TXX', groupId: group.id } })
     const match1 = await prisma.match.create({
       data: { roundId: round.id, matchNumber: 1, scheduledAt: new Date('2026-07-01'), scoreHome: 2, scoreAway: 1, status: 'FINISHED', winnerTeamId: team.id, homeTeamId: team.id },
     })
@@ -54,15 +121,9 @@ describe('GET /scoreboard', () => {
       data: { roundId: round.id, matchNumber: 2, scheduledAt: new Date('2026-07-02'), scoreHome: 0, scoreAway: 0, status: 'FINISHED', winnerTeamId: team.id, homeTeamId: team.id },
     })
 
-    // p1: 1 exact KO score (match1 only)
     await prisma.koPrediction.createMany({
       data: [
         { participantId: p1.id, matchId: match1.id, scoreHome: 2, scoreAway: 1, teamAdvancesId: team.id, tripleActive: false },
-      ],
-    })
-    // p2: 2 exact KO scores
-    await prisma.koPrediction.createMany({
-      data: [
         { participantId: p2.id, matchId: match1.id, scoreHome: 2, scoreAway: 1, teamAdvancesId: team.id, tripleActive: false },
         { participantId: p2.id, matchId: match2.id, scoreHome: 0, scoreAway: 0, teamAdvancesId: team.id, tripleActive: false },
       ],
@@ -108,5 +169,188 @@ describe('GET /scoreboard', () => {
     expect(res.statusCode).toBe(200)
     const data = res.json<{ rank: number }[]>()
     expect(data.every((e) => e.rank === 1)).toBe(true)
+  })
+
+  // ── scoring pipeline ────────────────────────────────────────────────────
+
+  it('group predictions: 4/4 exact → pts_group_position_exact*4 + bonus via persistGroupScoreEvents', async () => {
+    await seedScoringParams({ pts_group_position_exact: 3, bonus_group_complete: 5 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { group, teams } = await buildFinalizedGroup('B')
+
+    // standings: realPosition matches team order
+    await prisma.groupStanding.createMany({
+      data: teams.map((t, i) => ({
+        teamId: t.id,
+        groupId: group.id,
+        realPosition: i + 1,
+        matchesPlayed: 3,
+      })),
+    })
+
+    // predictions: all 4 positions correct
+    await prisma.groupPrediction.createMany({
+      data: teams.map((t, i) => ({
+        participantId: participant.id,
+        groupId: group.id,
+        teamId: t.id,
+        predictedPosition: i + 1,
+      })),
+    })
+
+    await persistGroupScoreEvents(group.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ totalPoints: number }[]>().find((e) => true)
+    expect(entry?.totalPoints).toBe(4 * 3 + 5) // 17
+  })
+
+  it('group predictions: 2/4 exact → pts_group_position_exact*2, no bonus', async () => {
+    await seedScoringParams({ pts_group_position_exact: 3, bonus_group_complete: 5 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { group, teams } = await buildFinalizedGroup('C')
+
+    await prisma.groupStanding.createMany({
+      data: teams.map((t, i) => ({ teamId: t.id, groupId: group.id, realPosition: i + 1, matchesPlayed: 3 })),
+    })
+
+    // participant predicts positions 1,2 correctly, swaps 3 and 4
+    const predictedPositions = [1, 2, 4, 3]
+    await prisma.groupPrediction.createMany({
+      data: teams.map((t, i) => ({
+        participantId: participant.id,
+        groupId: group.id,
+        teamId: t.id,
+        predictedPosition: predictedPositions[i],
+      })),
+    })
+
+    await persistGroupScoreEvents(group.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ totalPoints: number }[]>()[0]
+    expect(entry.totalPoints).toBe(2 * 3) // 6, no bonus
+  })
+
+  it('KO advances correct + exact score → pts reflected via persistKoMatchScoreEvents', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 2, scoreAway: 0, winnerTeamId: home.id, status: 'FINISHED' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    await persistKoMatchScoreEvents(match.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ totalPoints: number }[]>()[0]
+    // (4 + 6) * scale_r32(1) = 10
+    expect(entry.totalPoints).toBe(10)
+  })
+
+  it('KO triple active + exact score → adds mult_triple bonus', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 1, scoreAway: 0, winnerTeamId: home.id, status: 'FINISHED' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 1, scoreAway: 0, teamAdvancesId: home.id, tripleActive: true },
+    })
+
+    await persistKoMatchScoreEvents(match.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ totalPoints: number }[]>()[0]
+    // (4 + 6) * 1 + 3 = 13
+    expect(entry.totalPoints).toBe(13)
+  })
+
+  it('KO triple active + wrong exact score → 0 pts (triple-or-nothing penalty)', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 2, scoreAway: 0, winnerTeamId: home.id, status: 'FINISHED' },
+    })
+    // correct advances, wrong score
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 1, scoreAway: 0, teamAdvancesId: home.id, tripleActive: true },
+    })
+
+    await persistKoMatchScoreEvents(match.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ totalPoints: number }[]>()[0]
+    expect(entry.totalPoints).toBe(0)
+  })
+
+  it('dark horse team wins → pts_dark_horse_per_round via persistPowerupKoMatchEvents', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    const darkHorse = home
+    const group = await prisma.group.findFirst({ where: { label: 'Z' } })
+    const otherTeam = await prisma.team.create({ data: { name: 'Other', code: 'OTH', groupId: group!.id } })
+
+    await prisma.powerup.create({
+      data: {
+        participantId: participant.id,
+        darkHorseTeamId: darkHorse.id,
+        disappointmentTeamId: otherTeam.id,
+      },
+    })
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { winnerTeamId: darkHorse.id, status: 'FINISHED' },
+    })
+
+    await persistPowerupKoMatchEvents(match.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ totalPoints: number }[]>()[0]
+    expect(entry.totalPoints).toBe(8)
+  })
+
+  it('disappointment team wins → negative pts via persistPowerupKoMatchEvents', async () => {
+    await seedScoringParams({ pts_disappointment_per_round: 5, pts_dark_horse_per_round: 8 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home, away } = await buildKoMatch('R32')
+
+    await prisma.powerup.create({
+      data: {
+        participantId: participant.id,
+        darkHorseTeamId: away.id,      // dark horse loses
+        disappointmentTeamId: home.id, // disappointment wins
+      },
+    })
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { winnerTeamId: home.id, status: 'FINISHED' },
+    })
+
+    await persistPowerupKoMatchEvents(match.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ totalPoints: number }[]>()[0]
+    expect(entry.totalPoints).toBe(-5)
   })
 })
