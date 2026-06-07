@@ -1,5 +1,11 @@
 import { prisma } from '../lib/prisma.js'
-import { toScoreboardEntryDto, type ScoreboardEntryDto } from '../mappers/scoreboard.mapper.js'
+import { AppError } from '../lib/errors.js'
+import {
+  toScoreboardEntryDto,
+  toScoreBreakdownDto,
+  type ScoreboardEntryDto,
+  type ScoreBreakdownDto,
+} from '../mappers/scoreboard.mapper.js'
 
 export async function getScoreboard(): Promise<ScoreboardEntryDto[]> {
   const [participants, scoreGroups, koPredictions] = await Promise.all([
@@ -47,4 +53,16 @@ export async function getScoreboard(): Promise<ScoreboardEntryDto[]> {
   }
 
   return entries
+}
+
+export async function getScoreboardBreakdown(participantId: string): Promise<ScoreBreakdownDto> {
+  const [participant, events, tripleCount] = await Promise.all([
+    prisma.participant.findUnique({ where: { id: participantId }, select: { id: true, name: true } }),
+    prisma.scoreEvent.findMany({ where: { participantId }, select: { paramKey: true, points: true } }),
+    prisma.koPrediction.count({ where: { participantId, tripleActive: true } }),
+  ])
+
+  if (!participant) throw new AppError(404, 'PARTICIPANT_NOT_FOUND', 'Participant not found')
+
+  return toScoreBreakdownDto(participant, events, Math.max(0, 3 - tripleCount))
 }
