@@ -703,10 +703,10 @@ paths:
                     name: "Grupo A"
                     groupComplete: true
                     rankings:
-                      - { teamId: "uuid-mex", name: "México",         code: "MEX", isTop8: false, position: 1 }
-                      - { teamId: "uuid-usa", name: "Estados Unidos", code: "USA", isTop8: true,  position: 2 }
-                      - { teamId: "uuid-col", name: "Colombia",       code: "COL", isTop8: false, position: 3 }
-                      - { teamId: "uuid-ecu", name: "Ecuador",        code: "ECU", isTop8: false, position: 4 }
+                      - { teamId: "uuid-mex", name: "México",         code: "MEX", isTop8: false, predictedPosition: 1 }
+                      - { teamId: "uuid-usa", name: "Estados Unidos", code: "USA", isTop8: true,  predictedPosition: 2 }
+                      - { teamId: "uuid-col", name: "Colombia",       code: "COL", isTop8: false, predictedPosition: 3 }
+                      - { teamId: "uuid-ecu", name: "Ecuador",        code: "ECU", isTop8: false, predictedPosition: 4 }
                   - groupId: "uuid-B"
                     label: "B"
                     name: "Grupo B"
@@ -1675,13 +1675,13 @@ components:
     GroupRanking:
       type: object
       description: Posición predicha de un equipo dentro de su grupo
-      required: [teamId, name, code, isTop8, position]
+      required: [teamId, name, code, isTop8, predictedPosition]
       properties:
-        teamId:   { type: string, format: uuid }
-        name:     { type: string }
-        code:     { type: string }
-        isTop8:   { type: boolean }
-        position: { type: integer, minimum: 1, maximum: 4 }
+        teamId:           { type: string, format: uuid }
+        name:             { type: string }
+        code:             { type: string }
+        isTop8:           { type: boolean }
+        predictedPosition: { type: integer, minimum: 1, maximum: 4 }
 
     GroupPrediction:
       type: object
@@ -1710,20 +1710,17 @@ components:
             a los keys de scoring_params.
           oneOf:
             - type: object
-              required: [pts_group_position_exact, pts_group_position_partial, bonus_group_complete, total]
+              required: [pts_group_position_exact, bonus_group_complete, total]
               properties:
                 pts_group_position_exact:
                   type: integer
-                  description: "Puntos por equipos en posición exacta (suma de todos los acertados)"
-                pts_group_position_partial:
-                  type: integer
-                  description: "Puntos por equipos que clasificaron pero en diferente posición"
+                  description: "Puntos por equipos en posición exacta (exactCount × pts_group_position_exact)"
                 bonus_group_complete:
                   type: integer
-                  description: "Bonus por tener los 4 equipos del grupo en posición correcta. 0 si no aplica."
+                  description: "Bonus por acertar los 4 exactos. 0 si no aplica."
                 total:
                   type: integer
-                  description: "Total de puntos sumados en este grupo"
+                  description: "Total de puntos en este grupo"
             - type: 'null'
 
     ThirdCandidate:

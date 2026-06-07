@@ -1,16 +1,20 @@
 # Coding rules
 
-## Separación de capas
+## Language
 
-Sin excepción:
+All code must be written in English: variable names, function names, comments, error messages, string literals, test descriptions, and any text that appears in source files. No Spanish in code.
 
-- **`routes/`** — parsear body/params, llamar service, devolver response. Cero lógica de dominio.
-- **`services/`** — toda la lógica de negocio. Accede a Prisma directamente. Lanza `AppError` para errores esperados.
-- **`lib/`** — utilidades puras sin acoplamiento a Fastify.
+## Layer separation
 
-## DTOs y mappers
+No exceptions:
 
-Los servicios nunca retornan tipos de Prisma directamente. Todo lo que sale hacia la ruta pasa por un mapper en `src/mappers/<feature>.mapper.ts`.
+- **`routes/`** — parse body/params, call service, return response. Zero domain logic.
+- **`services/`** — all business logic. Accesses Prisma directly. Throws `AppError` for expected errors.
+- **`lib/`** — pure utilities with no Fastify coupling.
+
+## DTOs and mappers
+
+Services never return Prisma types directly. Everything sent to a route goes through a mapper in `src/mappers/<feature>.mapper.ts`.
 
 ```ts
 // src/mappers/group.mapper.ts
@@ -29,40 +33,40 @@ export async function findAllGroups(): Promise<GroupDto[]> {
 }
 ```
 
-Reglas:
-- Excluir campos internos: `externalTeamId`, `createdAt`, `updatedAt`, claves foráneas redundantes.
-- El tipo de retorno del servicio debe ser explícito (`Promise<GroupDto[]>`), no inferido.
-- Un archivo por dominio: `group.mapper.ts`, `participant.mapper.ts`, etc.
+Rules:
+- Exclude internal fields: `externalTeamId`, `createdAt`, `updatedAt`, redundant foreign keys.
+- Service return type must be explicit (`Promise<GroupDto[]>`), not inferred.
+- One file per domain: `group.mapper.ts`, `participant.mapper.ts`, etc.
 
-## Errores
+## Errors
 
-Usar siempre `AppError(statusCode, code, message)`:
+Always use `AppError(statusCode, code, message)`:
 
 ```ts
-throw new AppError(404, 'INVITE_NOT_FOUND', 'Código de invitación no encontrado')
+throw new AppError(404, 'INVITE_NOT_FOUND', 'Invitation code not found')
 ```
 
-- El error handler global en `server.ts` serializa como `{ code, message }`.
-- Códigos en SCREAMING_SNAKE_CASE.
-- No agregar `try/catch` en routes para errores de dominio — dejarlos subir.
+- The global error handler in `server.ts` serializes as `{ code, message }`.
+- Codes in SCREAMING_SNAKE_CASE.
+- Do not add `try/catch` in routes for domain errors — let them bubble up.
 
-## Auth en routes
+## Auth in routes
 
-Declarar preHandlers en el objeto de opciones:
+Declare preHandlers in the options object:
 
 ```ts
-// cualquier participante autenticado
+// any authenticated participant
 fastify.get('/me', { preHandler: [fastify.authenticate] }, async (request, reply) => { ... })
 
-// solo admin
+// admin only
 fastify.post('/admin/x', { preHandler: [fastify.authenticate, fastify.requireAdmin] }, ...)
 ```
 
-`request.user` queda disponible con el `Participant` completo después de `fastify.authenticate`.
+`request.user` is available with the full `Participant` after `fastify.authenticate`.
 
 ## Imports
 
-Siempre con extensión `.js` (salida CommonJS):
+Always with `.js` extension (CommonJS output):
 
 ```ts
 import { AppError } from '../lib/errors.js'
@@ -71,10 +75,10 @@ import { prisma } from '../lib/prisma.js'
 
 ## TypeScript
 
-- Strict activado — no usar `any`.
-- Body sin schema Fastify: castear como `request.body as { field?: string }`.
-- Tipos de Prisma importados directamente de `@prisma/client`.
+- Strict enabled — do not use `any`.
+- Body without Fastify schema: cast as `request.body as { field?: string }`.
+- Prisma types imported directly from `@prisma/client`.
 
 ## Linting
 
-`npm run build` es el linter. Debe pasar en 0 errores antes de todo commit. No hay ESLint; TypeScript strict es suficiente.
+`npm run build` is the linter. Must pass with 0 errors before every commit. No ESLint; TypeScript strict is sufficient.

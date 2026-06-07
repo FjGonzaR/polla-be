@@ -1,10 +1,14 @@
 # Testing rules
 
-## Principio
+## Language
 
-**Solo tests de integración contra BD real.** Nunca mockear Prisma.
+All code must be in English. See coding rules.
 
-La BD de tests se configura con `TEST_DATABASE_URL`. Si no está definida, usa `DATABASE_URL`. Setup de una BD de tests separada:
+## Principle
+
+**Integration tests against a real DB only.** Never mock Prisma.
+
+The test DB is configured with `TEST_DATABASE_URL`. If not set, falls back to `DATABASE_URL`. One-time test DB setup:
 
 ```bash
 createdb polla_test
@@ -12,14 +16,14 @@ TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/polla_test \
   npx prisma migrate deploy
 ```
 
-Correr tests contra ella:
+Run tests against it:
 ```bash
 TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/polla_test npm test
 ```
 
-## Lo único que se mockea
+## What gets mocked
 
-Llamadas HTTP externas (Google OAuth, worldcup API). Nunca Prisma.
+Only external HTTP calls (Google OAuth, worldcup API). Never Prisma.
 
 ```ts
 const { mockVerifyGoogleToken } = vi.hoisted(() => ({
@@ -31,9 +35,9 @@ vi.mock('../../lib/google-auth.js', () => ({
 }))
 ```
 
-`vi.hoisted()` y `vi.mock()` van al nivel del módulo, no dentro de `describe`.
+`vi.hoisted()` and `vi.mock()` go at module level, not inside `describe`.
 
-## Estructura de un test file
+## Test file structure
 
 ```ts
 import { describe, it, expect, beforeEach, vi } from 'vitest'
@@ -43,7 +47,7 @@ import { createAuthenticatedParticipant, createAuthenticatedAdmin } from '../hel
 import { buildMyModel } from '../builders/my-model.builder.js'
 
 describe('POST /feature', () => {
-  it('caso exitoso → 201 + registro en BD', async () => {
+  it('success → 201 + record in DB', async () => {
     // Arrange
     const { cookie } = await createAuthenticatedParticipant()
     await buildMyModel({ field: 'value' })
@@ -61,12 +65,12 @@ describe('POST /feature', () => {
     expect(res.statusCode).toBe(201)
     expect(res.json().field).toBe('value')
 
-    // Assert BD
+    // Assert DB
     const row = await prisma.myModel.findFirst({ where: { field: 'value' } })
     expect(row).not.toBeNull()
   })
 
-  it('sin autenticación → 401', async () => {
+  it('no auth → 401', async () => {
     const server = await buildServer()
     const res = await server.inject({ method: 'POST', url: '/feature', payload: {} })
     expect(res.statusCode).toBe(401)
@@ -74,41 +78,41 @@ describe('POST /feature', () => {
 })
 ```
 
-## Helpers disponibles
+## Available helpers
 
-| Helper | Cuándo usarlo |
+| Helper | When to use |
 |---|---|
-| `buildInvitation(overrides?)` | Crear invitaciones de prueba en BD |
-| `buildParticipant(overrides?)` | Crear participantes de prueba en BD |
-| `createAuthenticatedParticipant(opts?)` | Rutas que requieren `fastify.authenticate` |
-| `createAuthenticatedAdmin(opts?)` | Rutas que requieren `fastify.requireAdmin` |
+| `buildInvitation(overrides?)` | Create test invitations in DB |
+| `buildParticipant(overrides?)` | Create test participants in DB |
+| `createAuthenticatedParticipant(opts?)` | Routes requiring `fastify.authenticate` |
+| `createAuthenticatedAdmin(opts?)` | Routes requiring `fastify.requireAdmin` |
 
-Retornan `{ participant, cookie }`. Usar `cookie` directo en `headers: { cookie }`.
+Return `{ participant, cookie }`. Use `cookie` directly in `headers: { cookie }`.
 
 ## Cleanup
 
-`src/tests/setup.ts` ejecuta `afterEach` que borra tablas. Al agregar un modelo nuevo, añadirlo ahí:
+`src/tests/setup.ts` runs `afterEach` that clears tables. When adding a new model, add it there:
 
 ```ts
 afterEach(async () => {
-  // borrar hijos antes que padres (orden FK)
-  await prisma.nuevoModelo.deleteMany()
+  // delete children before parents (FK order)
+  await prisma.newModel.deleteMany()
   await prisma.participant.deleteMany()
   await prisma.invitation.deleteMany()
 })
 ```
 
-## Casos mínimos por endpoint
+## Minimum cases per endpoint
 
-Todo endpoint debe tener al menos:
+Every endpoint must have at least:
 
-- Caso exitoso con verificación en BD
-- Sin autenticación → 401 (si la ruta lo requiere)
-- Sin permisos → 403 (si requiere admin)
-- Recurso no encontrado → 404 (si aplica)
-- Datos inválidos → 400 (si hay validación)
-- Estado bloqueado → 423 (si aplica candado)
+- Success case with DB verification
+- No auth → 401 (if route requires it)
+- No permissions → 403 (if admin required)
+- Resource not found → 404 (if applicable)
+- Invalid data → 400 (if validation exists)
+- Locked state → 423 (if a lock applies)
 
-## Configuración Vitest
+## Vitest config
 
-`fileParallelism: false` — tests corren en serie para evitar conflictos en BD. No cambiar.
+`fileParallelism: false` — tests run serially to avoid DB conflicts. Do not change.

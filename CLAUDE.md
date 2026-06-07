@@ -91,6 +91,8 @@ Copy `.env.example` → `.env`. Key vars:
 
 ## Rules
 
+**All code must be in English** — variable names, function names, error messages, string literals, comments, and test descriptions. No Spanish in source files.
+
 @.claude/rules/coding.md
 @.claude/rules/scaffolding.md
 @.claude/rules/testing.md

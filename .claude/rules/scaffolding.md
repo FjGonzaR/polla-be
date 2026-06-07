@@ -1,33 +1,37 @@
 # Scaffolding rules
 
-## Checklist para un nuevo endpoint
+## Language
 
-Seguir este orden exacto:
+All code must be in English. See coding rules.
+
+## Checklist for a new endpoint
+
+Follow this exact order:
 
 1. **Service** — `src/services/<feature>.service.ts`
-   - Toda la lógica de dominio aquí.
-   - Lanzar `AppError` para errores esperados.
+   - All domain logic here.
+   - Throw `AppError` for expected errors.
 
 2. **Route** — `src/routes/<feature>.ts`
-   - Solo HTTP: parsear, llamar service, responder.
-   - Registrar en `server.ts`: `server.register(<feature>Routes, { prefix: '/<feature>' })`
+   - HTTP only: parse, call service, respond.
+   - Register in `server.ts`: `server.register(<feature>Routes, { prefix: '/<feature>' })`
 
-3. **Builder** (si hay modelo Prisma nuevo) — `src/tests/builders/<model>.builder.ts`
-   - Factory async que inserta en BD real con `prisma.<model>.create(...)`.
-   - Aceptar `overrides: Partial<...>` con defaults razonables.
+3. **Builder** (if there is a new Prisma model) — `src/tests/builders/<model>.builder.ts`
+   - Async factory that inserts into a real DB with `prisma.<model>.create(...)`.
+   - Accept `overrides: Partial<...>` with sensible defaults.
 
 4. **Setup cleanup** — `src/tests/setup.ts`
-   - Añadir `await prisma.<nuevoModelo>.deleteMany()` en `afterEach`.
-   - Respetar orden FK: borrar hijos antes que padres.
+   - Add `await prisma.<newModel>.deleteMany()` in `afterEach`.
+   - Respect FK order: delete children before parents.
 
 5. **Tests** — `src/tests/<feature>/<feature>-<method>.test.ts`
-   - Un `describe` por endpoint, un `it` por caso.
-   - Ver testing rules para la estructura.
+   - One `describe` per endpoint, one `it` per case.
+   - See testing rules for structure.
 
-6. **Verificar** — `npm run build && npm test`
-   - Ambos deben pasar antes de considerar el trabajo terminado.
+6. **Verify** — `npm run build && npm test`
+   - Both must pass before considering the work done.
 
-## Estructura de un route file
+## Route file structure
 
 ```ts
 import type { FastifyInstance } from 'fastify'
@@ -47,7 +51,7 @@ export default async function myRoutes(fastify: FastifyInstance) {
 }
 ```
 
-## Estructura de un service file
+## Service file structure
 
 ```ts
 import { prisma } from '../lib/prisma.js'
@@ -55,12 +59,12 @@ import { AppError } from '../lib/errors.js'
 
 export async function myService(participantId: string) {
   const item = await prisma.myModel.findUnique({ where: { id: participantId } })
-  if (!item) throw new AppError(404, 'NOT_FOUND', 'Recurso no encontrado')
+  if (!item) throw new AppError(404, 'NOT_FOUND', 'Resource not found')
   return item
 }
 ```
 
-## Estructura de un builder
+## Builder structure
 
 ```ts
 import { type MyModel } from '@prisma/client'
