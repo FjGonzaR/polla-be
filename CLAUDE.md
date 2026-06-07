@@ -25,12 +25,33 @@ docker compose up db -d      # start only the DB container (port 5433)
 docker compose up            # full stack (app + DB)
 ```
 
-No test suite exists yet.
+```bash
+# Tests (Vitest)
+npm test                    # run all tests once
+npm run test:watch          # watch mode
+npm run test:coverage       # coverage report
+
+# One-time test DB setup
+createdb polla_test
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/polla_test \
+  npx prisma migrate deploy
+```
+
+Run specific test file:
+```bash
+TEST_DATABASE_URL=... npx vitest run src/tests/auth/auth-google.test.ts
+```
 
 ## Environment
 
 Copy `.env.example` → `.env`. Key vars:
 - `DATABASE_URL` — local dev uses `localhost:5433`, Docker Compose uses `db:5432`
+- `TEST_DATABASE_URL` — separate DB for tests (avoids corrupting dev data)
+- `GOOGLE_CLIENT_ID` — from Google Cloud Console OAuth2 credentials
+- `JWT_SECRET` — secret for signing session cookies; change in production
+- `JWT_EXPIRES_IN` — session duration (default `30d`)
+- `COOKIE_SAME_SITE` — `lax` for same-domain, `none` (+ `secure`) for cross-domain
+- `CORS_ORIGIN` — FE origin(s), e.g. `http://localhost:5173`
 - `WORLDCUP_API_URL` — defaults to `https://worldcup26.ir`
 - `NODE_ENV=test` disables cron registration
 
@@ -38,9 +59,24 @@ Copy `.env.example` → `.env`. Key vars:
 
 **Stack:** Fastify + Prisma + PostgreSQL + TypeScript. No ORM abstraction layer — Prisma client used directly in services and crons.
 
-**Entry point:** `src/server.ts` — registers CORS, Prisma plugin, routes, and cron schedules.
+**Entry point:** `src/server.ts` — exports `buildServer()` factory (used by tests). Guarded with `require.main === module` so importing it doesn't start the server. Registers CORS, cookie plugin, Prisma plugin, authenticate plugin, routes, and cron schedules.
 
 **Prisma plugin** (`src/plugins/prisma.ts`) decorates the Fastify instance as `fastify.prisma`. Routes access DB through this. Direct imports of `src/lib/prisma.ts` (singleton) are used in services/crons outside the request lifecycle.
+
+**Auth module:**
+- `src/lib/google-auth.ts` — verifies Google ID tokens via `google-auth-library`
+- `src/lib/session.ts` — signs/verifies backend JWTs (`jsonwebtoken`)
+- `src/lib/errors.ts` — `AppError(statusCode, code, message)` caught by Fastify's `setErrorHandler`
+- `src/services/auth.service.ts` — `loginOrSignup(credential, code?, phone?)`: login if participant exists; signup via `$transaction` (mark invite USED + create participant) if code+phone provided; 403 `NEEDS_SIGNUP` if new user with no code/phone
+- `src/plugins/authenticate.ts` — decorates `fastify.authenticate` (reads `session` cookie → validates JWT → attaches `request.user`) and `fastify.requireAdmin`
+- Session = HttpOnly cookie (`session`), 30d, signed with `JWT_SECRET`. Never re-sends Google token after login.
+- FE flow: `POST /auth/google` with `{ credential, code?, phone? }` → 200 + cookie; `POST /auth/logout` → clears cookie
+
+**Test setup:**
+- Vitest 4, `fileParallelism: false` (serial files prevent cross-worker DB contamination)
+- `src/tests/setup.ts` — `afterEach` deletes participants then invitations (FK order)
+- `src/tests/builders/` — `buildInvitation()` / `buildParticipant()` async factories
+- Mock google token: `vi.hoisted()` + `vi.mock()` in each test file (not importable from shared mock file due to hoisting)
 
 **External data source:** `src/lib/worldcup-api.client.ts` wraps `https://worldcup26.ir`. Used by both crons. Teams/matches are linked via `externalTeamId` / `externalMatchId` fields.
 
@@ -52,6 +88,12 @@ Copy `.env.example` → `.env`. Key vars:
 - `lock-match` — every minute — sets `match.locked_at` for upcoming KO matches
 - `whatsapp-reminder` — every 30 min — WhatsApp notifications for upcoming matches
 - `recalculate-scores` — 1AM daily — precalculates scoreboard cache
+
+## Rules
+
+@.claude/rules/coding.md
+@.claude/rules/scaffolding.md
+@.claude/rules/testing.md
 
 ## Domain Model
 
@@ -80,8 +122,7 @@ Private World Cup 2026 predictions pool (~20 participants, invite-only).
 
 ## Planned Endpoints (not yet implemented)
 
-See `docs/EPs definition.md` for full contract. Not-yet-built routes:
-- `/auth/*` (Google SSO, join with invite code, phone registration)
+See `docs/EPs definition.md` and `docs/api-contract.yaml` for full contract. Not-yet-built routes:
 - `/admin/*` (invitations, group/match loading, result entry, scoring params)
 - `/groups/*` (predictions CRUD, thirds)
 - `/ko/*` (matches, predictions)
