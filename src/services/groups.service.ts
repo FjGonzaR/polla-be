@@ -1,3 +1,4 @@
+import type { Group, GroupPrediction, GroupStanding, Team } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
 import { toGroupDto, type GroupDto } from '../mappers/group.mapper.js'
@@ -89,27 +90,20 @@ interface MyGroupPredictionsDto {
   completedGroups: number
 }
 
-export async function findMyGroupPredictions(participantId: string): Promise<MyGroupPredictionsDto> {
-  const [groups, allPredictions, allStandings] = await Promise.all([
-    prisma.group.findMany({ include: { teams: true }, orderBy: { label: 'asc' } }),
-    prisma.groupPrediction.findMany({ where: { participantId }, include: { team: true } }),
-    prisma.groupStanding.findMany(),
-  ])
-
-  const hasAnyComplete = groups.some(
-    (g) => allPredictions.filter((p) => p.groupId === g.id).length === 4,
-  )
-  const [ptsExact, bonusComplete] = hasAnyComplete
-    ? await Promise.all([getParam('pts_group_position_exact'), getParam('bonus_group_complete')])
-    : [0, 0]
-
+function computeGroupStatus(
+  groups: (Group & { teams: Team[] })[],
+  predictions: (GroupPrediction & { team: Team })[],
+  allStandings: GroupStanding[],
+  ptsExact: number,
+  bonusComplete: number,
+): MyGroupPredictionsDto {
   const data: GroupPredictionStatus[] = groups.map((group) => {
-    const predictions = allPredictions
+    const groupPreds = predictions
       .filter((p) => p.groupId === group.id)
       .sort((a, b) => a.predictedPosition - b.predictedPosition)
 
-    const groupComplete = predictions.length === 4
-    const rankings: RankingDto[] = predictions.map((p) => ({
+    const groupComplete = groupPreds.length === 4
+    const rankings: RankingDto[] = groupPreds.map((p) => ({
       teamId: p.teamId,
       name: p.team.name,
       code: p.team.code,
@@ -134,4 +128,61 @@ export async function findMyGroupPredictions(participantId: string): Promise<MyG
   })
 
   return { data, completedGroups: data.filter((g) => g.groupComplete).length }
+}
+
+export async function findMyGroupPredictions(participantId: string): Promise<MyGroupPredictionsDto> {
+  const [groups, predictions, allStandings] = await Promise.all([
+    prisma.group.findMany({ include: { teams: true }, orderBy: { label: 'asc' } }),
+    prisma.groupPrediction.findMany({ where: { participantId }, include: { team: true } }),
+    prisma.groupStanding.findMany(),
+  ])
+
+  const hasAnyComplete = groups.some((g) => predictions.filter((p) => p.groupId === g.id).length === 4)
+  const [ptsExact, bonusComplete] = hasAnyComplete
+    ? await Promise.all([getParam('pts_group_position_exact'), getParam('bonus_group_complete')])
+    : [0, 0]
+
+  return computeGroupStatus(groups, predictions, allStandings, ptsExact, bonusComplete)
+}
+
+interface FriendPrediction {
+  participant: { id: string; name: string }
+  predictions: GroupPredictionStatus[]
+  totalGroupPoints: number
+}
+
+type FriendsGroupPredictionsDto =
+  | { available: false; availableAt: Date | null }
+  | { available: true; data: FriendPrediction[] }
+
+export async function findFriendsGroupPredictions(
+  participantId: string,
+): Promise<FriendsGroupPredictionsDto> {
+  const firstMatch = await prisma.match.findFirst({ orderBy: { scheduledAt: 'asc' } })
+  if (!firstMatch || firstMatch.scheduledAt > new Date()) {
+    return { available: false, availableAt: firstMatch?.scheduledAt ?? null }
+  }
+
+  const others = await prisma.participant.findMany({ where: { id: { not: participantId } } })
+  const otherIds = others.map((p) => p.id)
+
+  const [groups, allStandings, allPredictions, ptsExact, bonusComplete] = await Promise.all([
+    prisma.group.findMany({ include: { teams: true }, orderBy: { label: 'asc' } }),
+    prisma.groupStanding.findMany(),
+    prisma.groupPrediction.findMany({
+      where: { participantId: { in: otherIds } },
+      include: { team: true },
+    }),
+    getParam('pts_group_position_exact'),
+    getParam('bonus_group_complete'),
+  ])
+
+  const data: FriendPrediction[] = others.map((p) => {
+    const predictions = allPredictions.filter((pred) => pred.participantId === p.id)
+    const { data: groupData } = computeGroupStatus(groups, predictions, allStandings, ptsExact, bonusComplete)
+    const totalGroupPoints = groupData.reduce((sum, g) => sum + (g.pointsEarned?.total ?? 0), 0)
+    return { participant: { id: p.id, name: p.name }, predictions: groupData, totalGroupPoints }
+  })
+
+  return { available: true, data }
 }

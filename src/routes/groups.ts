@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { findAllGroups, upsertGroupPredictions, findMyGroupPredictions } from '../services/groups.service.js'
+import { findAllGroups, upsertGroupPredictions, findMyGroupPredictions, findFriendsGroupPredictions } from '../services/groups.service.js'
 import { isGroupPhaseLocked } from '../lib/lock.js'
 
 export default async function groupRoutes(fastify: FastifyInstance) {
@@ -12,6 +12,11 @@ export default async function groupRoutes(fastify: FastifyInstance) {
 
   fastify.get('/predictions/me', async (request, reply) => {
     const result = await findMyGroupPredictions(request.user.id)
+    return reply.send(result)
+  })
+
+  fastify.get('/predictions/friends', async (request, reply) => {
+    const result = await findFriendsGroupPredictions(request.user.id)
     return reply.send(result)
   })
 
