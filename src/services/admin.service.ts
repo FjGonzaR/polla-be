@@ -1,3 +1,4 @@
+import { type RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
 import {
@@ -5,7 +6,7 @@ import {
   persistPowerupKoMatchEvents,
   persistThirdScoreEvents,
 } from './score-calculation.service.js'
-import { toScoringParamDto, type ScoringParamDto } from '../mappers/admin.mapper.js'
+import { toScoringParamDto, toTop8TeamDto, type ScoringParamDto, type Top8TeamDto } from '../mappers/admin.mapper.js'
 
 interface MatchResultInput {
   scoreHome: number
@@ -71,4 +72,112 @@ export async function updateScoringParam(key: string, value: number): Promise<Sc
 
   const updated = await prisma.scoringParam.update({ where: { key }, data: { value } })
   return toScoringParamDto(updated)
+}
+
+interface TeamInput {
+  name: string
+  code: string
+  isTop8: boolean
+}
+
+interface GroupInput {
+  label: string
+  name: string
+  lastMatchAt?: string | null
+  teams: TeamInput[]
+}
+
+export async function loadGroups(groups: GroupInput[]): Promise<{ groupsCount: number; teamsCount: number }> {
+  const existing = await prisma.group.count()
+  if (existing > 0) throw new AppError(409, 'GROUPS_ALREADY_LOADED', 'Groups have already been loaded')
+
+  if (groups.length !== 12) {
+    throw new AppError(400, 'INVALID_GROUPS_PAYLOAD', 'Exactly 12 groups required')
+  }
+  for (const group of groups) {
+    if (group.teams.length !== 4) {
+      throw new AppError(400, 'INVALID_GROUPS_PAYLOAD', `Group ${group.label} must have exactly 4 teams`)
+    }
+  }
+
+  await prisma.$transaction(
+    groups.map((g) =>
+      prisma.group.create({
+        data: {
+          label: g.label,
+          name: g.name,
+          lastMatchAt: g.lastMatchAt ? new Date(g.lastMatchAt) : null,
+          teams: { create: g.teams.map((t) => ({ name: t.name, code: t.code, isTop8: t.isTop8 })) },
+        },
+      }),
+    ),
+  )
+
+  return { groupsCount: 12, teamsCount: 48 }
+}
+
+interface KoMatchInput {
+  externalMatchId: string | number
+  matchNumber: number
+  homeTeamId?: string | null
+  awayTeamId?: string | null
+  homeTeamLabel?: string | null
+  awayTeamLabel?: string | null
+  scheduledAt: string
+}
+
+export async function loadKoMatches(
+  roundSlug: RoundSlug,
+  matches: KoMatchInput[],
+): Promise<{ roundSlug: RoundSlug; matchesCount: number }> {
+  const round = await prisma.round.findUnique({ where: { slug: roundSlug } })
+  if (!round) throw new AppError(404, 'ROUND_NOT_FOUND', `Round '${roundSlug}' not found`)
+
+  await prisma.$transaction(
+    matches.map((m) =>
+      prisma.match.upsert({
+        where: { externalMatchId: String(m.externalMatchId) },
+        create: {
+          roundId: round.id,
+          matchNumber: m.matchNumber,
+          homeTeamId: m.homeTeamId ?? null,
+          awayTeamId: m.awayTeamId ?? null,
+          homeTeamLabel: m.homeTeamLabel ?? null,
+          awayTeamLabel: m.awayTeamLabel ?? null,
+          scheduledAt: new Date(m.scheduledAt),
+          externalMatchId: String(m.externalMatchId),
+        },
+        update: {
+          matchNumber: m.matchNumber,
+          homeTeamId: m.homeTeamId ?? null,
+          awayTeamId: m.awayTeamId ?? null,
+          homeTeamLabel: m.homeTeamLabel ?? null,
+          awayTeamLabel: m.awayTeamLabel ?? null,
+          scheduledAt: new Date(m.scheduledAt),
+        },
+      }),
+    ),
+  )
+
+  return { roundSlug, matchesCount: matches.length }
+}
+
+export async function setTop8Teams(teamIds: string[]): Promise<{ ok: boolean; teams: Top8TeamDto[] }> {
+  if (teamIds.length !== 8) {
+    throw new AppError(400, 'INVALID_TOP8_COUNT', 'Exactly 8 team IDs required')
+  }
+
+  const teams = await prisma.team.findMany({ where: { id: { in: teamIds } } })
+  if (teams.length !== 8) {
+    throw new AppError(404, 'TEAM_NOT_FOUND', 'One or more team IDs not found')
+  }
+
+  const idSet = new Set(teamIds)
+  await prisma.$transaction([
+    prisma.team.updateMany({ data: { isTop8: false } }),
+    ...teamIds.map((id) => prisma.team.update({ where: { id }, data: { isTop8: true } })),
+  ])
+
+  const updated = teams.map((t) => ({ ...t, isTop8: true }))
+  return { ok: true, teams: updated.filter((t) => idSet.has(t.id)).map(toTop8TeamDto) }
 }
