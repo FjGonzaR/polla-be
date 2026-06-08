@@ -884,6 +884,18 @@ paths:
       description: >
         Solo disponible una vez iniciado el torneo (NOW() >= scheduledAt del primer partido).
         Si el torneo no ha iniciado retorna available false con la fecha de apertura.
+        Si se pasa participantId, filtra los resultados a ese único participante
+        (útil para ver el detalle de un amigo puntual sin traer toda la lista).
+      parameters:
+        - name: participantId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: >
+            UUID del participante a filtrar. Si se omite retorna todos los demás participantes.
+            No puede ser el id del participante autenticado.
       responses:
         '200':
           description: Predicciones disponibles
@@ -916,6 +928,20 @@ paths:
                   value:
                     available: false
                     availableAt: "2026-06-11T17:00:00.000Z"
+        '400':
+          description: participantId es el id del participante autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { code: "INVALID_FRIEND", message: "Cannot request predictions for yourself" }
+        '404':
+          description: participantId no corresponde a ningún participante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { code: "PARTICIPANT_NOT_FOUND", message: "Participant not found" }
         '401':
           $ref: '#/components/responses/Unauthorized'
 
