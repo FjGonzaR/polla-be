@@ -162,9 +162,16 @@ describe('GET /groups/predictions/friends', () => {
     expect(friend1Entry.predictions[0].pointsEarned).toBeNull()
   })
 
-  it('filters to a single friend when participantId query param is provided', async () => {
+  it('filters to a single friend and returns their group predictions', async () => {
     await new MatchBuilder().withScheduledAt(new Date(Date.now() - 86_400_000)).build()
     const { cookie } = await createAuthenticatedParticipant({ googleId: 'uid-me', email: 'me@test.com' })
+
+    await predictGroup(friend1Id, groupAId, [
+      { teamId: mex.id, position: 1 },
+      { teamId: usa.id, position: 2 },
+      { teamId: col.id, position: 3 },
+      { teamId: ecu.id, position: 4 },
+    ])
 
     const server = await buildServer()
     const res = await server.inject({
@@ -178,6 +185,15 @@ describe('GET /groups/predictions/friends', () => {
     expect(body.available).toBe(true)
     expect(body.data).toHaveLength(1)
     expect(body.data[0].participant.id).toBe(friend1Id)
+
+    const groupAPrediction = body.data[0].predictions.find(
+      (p: { groupId: string }) => p.groupId === groupAId,
+    )
+    expect(groupAPrediction).toBeDefined()
+    expect(groupAPrediction.groupComplete).toBe(true)
+    expect(groupAPrediction.rankings).toHaveLength(4)
+    expect(groupAPrediction.rankings[0].teamId).toBe(mex.id)
+    expect(groupAPrediction.rankings[0].predictedPosition).toBe(1)
   })
 
   it('400 when participantId is the authenticated user own id', async () => {
