@@ -185,7 +185,7 @@ async function fetchMatchForWrite(matchId: string) {
   const match = await prisma.match.findUnique({ where: { id: matchId } })
   if (!match) throw new AppError(404, 'MATCH_NOT_FOUND', 'Match not found')
   if (match.status === 'FINISHED') throw new AppError(423, 'MATCH_FINISHED', 'Match already has an official result')
-  if (match.lockedAt != null && new Date() >= match.lockedAt) throw new AppError(423, 'MATCH_LOCKED', 'Match is closed for predictions')
+  if (new Date() >= new Date(match.scheduledAt.getTime() - 30 * 60 * 1000)) throw new AppError(423, 'MATCH_LOCKED', 'Match is closed for predictions')
   return match
 }
 

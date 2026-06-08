@@ -157,13 +157,16 @@ async function buildPowerupEvents(participantId: string): Promise<ScoreEventInpu
 
   for (const match of koMatches) {
     const roundSlug = match.round.slug
+    const scaleSlug = SCALE_SLUG_MAP[roundSlug]
+    if (!scaleSlug) continue
+    const scaleFactor = await getParam(scaleSlug)
 
     if (match.winnerTeamId === powerup.darkHorseTeamId && ptsDarkHorse > 0) {
-      events.push({ participantId, paramKey: 'pts_dark_horse_per_round', matchId: match.id, groupId: null, roundSlug, points: ptsDarkHorse })
+      events.push({ participantId, paramKey: 'pts_dark_horse_per_round', matchId: match.id, groupId: null, roundSlug, points: Math.round(ptsDarkHorse * scaleFactor) })
     }
 
     if (match.winnerTeamId === powerup.disappointmentTeamId) {
-      events.push({ participantId, paramKey: 'pts_disappointment_per_round', matchId: match.id, groupId: null, roundSlug, points: -ptsDisappointment })
+      events.push({ participantId, paramKey: 'pts_disappointment_per_round', matchId: match.id, groupId: null, roundSlug, points: -Math.round(ptsDisappointment * scaleFactor) })
     }
   }
 
@@ -276,11 +279,13 @@ export async function persistPowerupKoMatchEvents(matchId: string): Promise<void
   if (!match || !match.winnerTeamId) return
 
   const roundSlug = match.round.slug
-  if (!KO_ROUND_SLUGS.includes(roundSlug)) return
+  const scaleSlug = SCALE_SLUG_MAP[roundSlug]
+  if (!scaleSlug) return
 
-  const [ptsDarkHorse, ptsDisappointment, powerups] = await Promise.all([
+  const [ptsDarkHorse, ptsDisappointment, scaleFactor, powerups] = await Promise.all([
     getParam('pts_dark_horse_per_round'),
     getParam('pts_disappointment_per_round'),
+    getParam(scaleSlug),
     prisma.powerup.findMany({
       where: {
         OR: [
@@ -295,10 +300,10 @@ export async function persistPowerupKoMatchEvents(matchId: string): Promise<void
 
   for (const powerup of powerups) {
     if (powerup.darkHorseTeamId === match.winnerTeamId && ptsDarkHorse > 0) {
-      events.push({ participantId: powerup.participantId, paramKey: 'pts_dark_horse_per_round', matchId, groupId: null, roundSlug, points: ptsDarkHorse })
+      events.push({ participantId: powerup.participantId, paramKey: 'pts_dark_horse_per_round', matchId, groupId: null, roundSlug, points: Math.round(ptsDarkHorse * scaleFactor) })
     }
     if (powerup.disappointmentTeamId === match.winnerTeamId) {
-      events.push({ participantId: powerup.participantId, paramKey: 'pts_disappointment_per_round', matchId, groupId: null, roundSlug, points: -ptsDisappointment })
+      events.push({ participantId: powerup.participantId, paramKey: 'pts_disappointment_per_round', matchId, groupId: null, roundSlug, points: -Math.round(ptsDisappointment * scaleFactor) })
     }
   }
 

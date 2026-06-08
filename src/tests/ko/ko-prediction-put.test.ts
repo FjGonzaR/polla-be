@@ -9,12 +9,10 @@ import { createAuthenticatedParticipant } from '../helpers/auth.helper.js'
 async function buildKoMatchWithPrediction(participantId: string) {
   const homeTeam = await new TeamBuilder().build()
   const awayTeam = await new TeamBuilder().build()
-  const futureLockedAt = new Date(Date.now() + 86_400_000)
   const match = await new MatchBuilder()
     .withRoundSlug('R32')
     .withHomeTeamId(homeTeam.id)
     .withAwayTeamId(awayTeam.id)
-    .withLockedAt(futureLockedAt)
     .build()
   const prediction = await buildKoPrediction({
     participantId,
@@ -75,7 +73,6 @@ describe('PUT /ko/matches/:matchId/predictions', () => {
       .withRoundSlug('R32')
       .withHomeTeamId(homeTeam.id)
       .withAwayTeamId(awayTeam.id)
-      .withLockedAt(new Date(Date.now() + 86_400_000))
       .build()
     await buildKoPrediction({
       participantId: participant.id,
@@ -119,7 +116,6 @@ describe('PUT /ko/matches/:matchId/predictions', () => {
       .withRoundSlug('R32')
       .withHomeTeamId(homeTeam.id)
       .withAwayTeamId(awayTeam.id)
-      .withLockedAt(new Date(Date.now() + 86_400_000))
       .build()
 
     const res = await server.inject({
@@ -138,11 +134,12 @@ describe('PUT /ko/matches/:matchId/predictions', () => {
     const { participant, cookie } = await createAuthenticatedParticipant()
     const homeTeam = await new TeamBuilder().build()
     const awayTeam = await new TeamBuilder().build()
+    // scheduledAt 29 min from now → lock threshold already passed
     const match = await new MatchBuilder()
       .withRoundSlug('R32')
       .withHomeTeamId(homeTeam.id)
       .withAwayTeamId(awayTeam.id)
-      .withLockedAt(new Date(Date.now() - 1_000))
+      .withScheduledAt(new Date(Date.now() + 29 * 60 * 1000))
       .build()
     await buildKoPrediction({ participantId: participant.id, matchId: match.id, teamAdvancesId: homeTeam.id })
 

@@ -122,7 +122,6 @@ model Match {
   awayTeamId      String?        @map("away_team_id")
   awayTeam        Team?          @relation("AwayTeam", fields: [awayTeamId], references: [id])
   scheduledAt     DateTime       @map("scheduled_at")
-  lockedAt        DateTime?      @map("locked_at")
   reminderSent    Boolean        @default(false) @map("reminder_sent")
   scoreHome       Int?           @map("score_home")
   scoreAway       Int?           @map("score_away")

@@ -35,7 +35,7 @@ export interface KoMatchDto {
   externalMatchId: number | null
   matchNumber: number
   scheduledAt: Date
-  lockedAt: Date | null
+  lockedAt: Date
   status: string
   homeTeam: KoTeamDto | null
   awayTeam: KoTeamDto | null
@@ -98,7 +98,8 @@ export function toKoMatchDto(
   prediction: KoPrediction | null,
   pointsEarned: KoPointsEarnedDto | null,
 ): KoMatchDto {
-  const lockedIn = match.lockedAt != null && new Date() >= match.lockedAt
+  const lockedAt = new Date(match.scheduledAt.getTime() - 30 * 60 * 1000)
+  const lockedIn = new Date() >= lockedAt
 
   const result: KoResultDto | null =
     match.scoreHome != null && match.scoreAway != null && match.winnerTeamId != null
@@ -121,7 +122,7 @@ export function toKoMatchDto(
     externalMatchId: match.externalMatchId != null ? parseInt(match.externalMatchId, 10) : null,
     matchNumber: match.matchNumber,
     scheduledAt: match.scheduledAt,
-    lockedAt: match.lockedAt,
+    lockedAt,
     status: match.status,
     homeTeam: match.homeTeam ? toKoTeamDto(match.homeTeam) : null,
     awayTeam: match.awayTeam ? toKoTeamDto(match.awayTeam) : null,

@@ -102,30 +102,17 @@ describe('GET /scoreboard', () => {
     const p2 = await buildParticipant({ name: 'Beta' })
     const p3 = await buildParticipant({ name: 'Gamma' })
 
-    // p1: 100 pts, p2: 100 pts (tiebreak: p2 has 2 exact KO scores vs p1's 1), p3: 50 pts
+    // p1: 100 pts total (90 group + 10 exact KO), 1 exact KO score
+    // p2: 100 pts total (80 group + 10+10 exact KO), 2 exact KO scores → wins tiebreak
+    // p3: 50 pts
     await prisma.scoreEvent.createMany({
       data: [
-        { participantId: p1.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 100 },
-        { participantId: p2.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 100 },
+        { participantId: p1.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 90 },
+        { participantId: p2.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 80 },
         { participantId: p3.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 50 },
-      ],
-    })
-
-    const round = await prisma.round.create({ data: { name: 'Round of 32', slug: 'R32', order: 1, matchCount: 16 } })
-    const group = await prisma.group.create({ data: { name: 'Group A', label: 'A' } })
-    const team = await prisma.team.create({ data: { name: 'Team X', code: 'TXX', groupId: group.id } })
-    const match1 = await prisma.match.create({
-      data: { roundId: round.id, matchNumber: 1, scheduledAt: new Date('2026-07-01'), scoreHome: 2, scoreAway: 1, status: 'FINISHED', winnerTeamId: team.id, homeTeamId: team.id },
-    })
-    const match2 = await prisma.match.create({
-      data: { roundId: round.id, matchNumber: 2, scheduledAt: new Date('2026-07-02'), scoreHome: 0, scoreAway: 0, status: 'FINISHED', winnerTeamId: team.id, homeTeamId: team.id },
-    })
-
-    await prisma.koPrediction.createMany({
-      data: [
-        { participantId: p1.id, matchId: match1.id, scoreHome: 2, scoreAway: 1, teamAdvancesId: team.id, tripleActive: false },
-        { participantId: p2.id, matchId: match1.id, scoreHome: 2, scoreAway: 1, teamAdvancesId: team.id, tripleActive: false },
-        { participantId: p2.id, matchId: match2.id, scoreHome: 0, scoreAway: 0, teamAdvancesId: team.id, tripleActive: false },
+        { participantId: p1.id, paramKey: 'pts_ko_exact_score', matchId: null, groupId: null, roundSlug: null, points: 10 },
+        { participantId: p2.id, paramKey: 'pts_ko_exact_score', matchId: null, groupId: null, roundSlug: null, points: 10 },
+        { participantId: p2.id, paramKey: 'pts_ko_exact_score', matchId: null, groupId: null, roundSlug: null, points: 10 },
       ],
     })
 

@@ -15,7 +15,6 @@ import scoreboardRoutes from './routes/scoreboard.js'
 import { syncStandings } from './crons/sync-standings.js'
 import { syncKoResults } from './crons/sync-ko-results.js'
 import { recalculateScores } from './crons/recalculate-scores.js'
-import { lockMatches } from './crons/lock-match.js'
 import { AppError } from './lib/errors.js'
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -59,10 +58,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     // recalculate-scores: 1AM UTC diaria
     cron.schedule('0 1 * * *', recalculateScores)
 
-    // lock-match: cada minuto
-    cron.schedule('* * * * *', lockMatches)
-
-    server.log.info('Crons registrados: sync-standings + sync-ko-results + recalculate-scores + lock-match')
+    server.log.info('Crons registrados: sync-standings + sync-ko-results + recalculate-scores')
   }
 
   return server
