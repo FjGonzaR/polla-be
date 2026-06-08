@@ -1,15 +1,15 @@
 # Polla Mundial 2026 — Backend
 
-Backend del pool privado de predicciones del Mundial 2026. Node.js 22 + Fastify 4 + Prisma 5 + PostgreSQL 16.
+Backend del pool privado de predicciones del Mundial 2026. Node.js 22 + Fastify 4 + Prisma 5 + PostgreSQL.
 
 ## Stack
 
 - **Runtime:** Node.js 22 LTS
 - **Framework:** Fastify 4
-- **ORM:** Prisma 5 (PostgreSQL 16)
+- **ORM:** Prisma 5
 - **Auth:** Google OAuth 2.0 + cookie de sesión JWT (HttpOnly, 30d)
 - **Tests:** Vitest — integración contra BD real
-- **Contenedor:** Docker + Docker Compose
+- **Contenedor:** Docker + Docker Compose (solo BD en local)
 
 ## Requisitos
 
@@ -41,17 +41,17 @@ npm run dev
 
 ## Variables de entorno
 
-| Variable | Descripción | Ejemplo |
-|---|---|---|
-| `DATABASE_URL` | Conexión Postgres | `postgresql://postgres:postgres@localhost:5433/polla_mundial` |
-| `GOOGLE_CLIENT_ID` | OAuth 2.0 Client ID de Google Cloud | `xxx.apps.googleusercontent.com` |
-| `JWT_SECRET` | Secreto para firmar cookies de sesión | cadena aleatoria larga |
-| `JWT_EXPIRES_IN` | Duración de la sesión | `30d` |
-| `COOKIE_SAME_SITE` | `lax` si FE/BE comparten dominio, `none` si son distintos (requiere HTTPS) | `lax` |
-| `CORS_ORIGIN` | URL del frontend | `http://localhost:5173` |
-| `WORLDCUP_API_URL` | API externa de resultados | `https://worldcup26.ir` |
-| `TEST_DATABASE_URL` | BD separada para tests (opcional) | `postgresql://.../polla_test` |
-| `PORT` | Puerto del servidor | `3000` |
+| Variable            | Descripción                                                                | Ejemplo                                                       |
+| ------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `DATABASE_URL`      | Conexión Postgres                                                          | `postgresql://postgres:postgres@localhost:5433/polla_mundial` |
+| `GOOGLE_CLIENT_ID`  | OAuth 2.0 Client ID de Google Cloud                                        | `xxx.apps.googleusercontent.com`                              |
+| `JWT_SECRET`        | Secreto para firmar cookies de sesión                                      | cadena aleatoria larga                                        |
+| `JWT_EXPIRES_IN`    | Duración de la sesión                                                      | `30d`                                                         |
+| `COOKIE_SAME_SITE`  | `lax` si FE/BE comparten dominio, `none` si son distintos (requiere HTTPS) | `lax`                                                         |
+| `CORS_ORIGIN`       | URL del frontend                                                           | `http://localhost:5173`                                       |
+| `WORLDCUP_API_URL`  | API externa de resultados                                                  | `https://worldcup26.ir`                                       |
+| `TEST_DATABASE_URL` | BD separada para tests (opcional)                                          | `postgresql://.../polla_test`                                 |
+| `PORT`              | Puerto del servidor                                                        | `3000`                                                        |
 
 ## Comandos
 
@@ -88,19 +88,51 @@ TEST_DATABASE_URL=... npx vitest run src/tests/auth/auth-google.test.ts
 
 ## Deploy (Oracle Cloud Free Tier)
 
-El stack completo corre en Docker Compose. En producción `entrypoint.sh` ejecuta `prisma migrate deploy` antes de arrancar el servidor.
+Servidor: VM.Standard.A1.Flex (ARM), Ubuntu 22.04. App corre con PM2 detrás de Nginx. PostgreSQL en la misma VM.
+
+- **URL:** https://api.paulpredice.com
+- **DNS:** Cloudflare con proxy habilitado, SSL Full (strict)
+- **Repo en servidor:** `~/polla-be`
+
+### Primer deploy (setup inicial)
 
 ```bash
-# En el VM, crear .env con:
-# DATABASE_URL=postgresql://postgres:<password>@db:5432/polla_mundial
-# NODE_ENV=production
-# (resto de variables)
+# En el VM
+git clone <repo-url> ~/polla-be
+cd ~/polla-be
+npm install
+cp .env.example .env
+# Editar .env con valores de producción
 
-docker compose up -d --build
-curl http://localhost:3000/health
+npx prisma migrate deploy
+npm run build
+pm2 start dist/server.js --name polla-be
+pm2 save
+pm2 startup  # seguir las instrucciones que imprime
 ```
 
-Ver `docker-compose.yml` y `Dockerfile` para la configuración completa.
+### Redesplegar cambios
+
+```bash
+~/polla-be/deploy.sh
+```
+
+El script `deploy.sh` en la raíz del repo hace: `git pull` → `npm install` → `prisma migrate deploy` → `npm run build` → `pm2 restart`.
+
+Primera vez en un VM nuevo, darle permisos de ejecución:
+
+```bash
+chmod +x ~/polla-be/deploy.sh
+```
+
+### Ver logs
+
+```bash
+pm2 logs polla-be           # tiempo real
+pm2 logs polla-be --lines 100
+pm2 logs polla-be --err     # solo errores
+pm2 logs polla-be --out     # solo stdout
+```
 
 ## Contrato API
 
