@@ -17,7 +17,8 @@ export default async function groupRoutes(fastify: FastifyInstance) {
   })
 
   fastify.get('/predictions/friends', async (request, reply) => {
-    const result = await findFriendsGroupPredictions(request.user.id)
+    const { participantId } = request.query as { participantId?: string }
+    const result = await findFriendsGroupPredictions(request.user.id, participantId)
     return reply.send(result)
   })
 

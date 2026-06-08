@@ -162,6 +162,54 @@ describe('GET /groups/predictions/friends', () => {
     expect(friend1Entry.predictions[0].pointsEarned).toBeNull()
   })
 
+  it('filters to a single friend when participantId query param is provided', async () => {
+    await new MatchBuilder().withScheduledAt(new Date(Date.now() - 86_400_000)).build()
+    const { cookie } = await createAuthenticatedParticipant({ googleId: 'uid-me', email: 'me@test.com' })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'GET',
+      url: `/groups/predictions/friends?participantId=${friend1Id}`,
+      headers: { cookie },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.available).toBe(true)
+    expect(body.data).toHaveLength(1)
+    expect(body.data[0].participant.id).toBe(friend1Id)
+  })
+
+  it('400 when participantId is the authenticated user own id', async () => {
+    await new MatchBuilder().withScheduledAt(new Date(Date.now() - 86_400_000)).build()
+    const { participant: me, cookie } = await createAuthenticatedParticipant({ googleId: 'uid-me', email: 'me@test.com' })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'GET',
+      url: `/groups/predictions/friends?participantId=${me.id}`,
+      headers: { cookie },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().code).toBe('INVALID_FRIEND')
+  })
+
+  it('404 when participantId does not exist', async () => {
+    await new MatchBuilder().withScheduledAt(new Date(Date.now() - 86_400_000)).build()
+    const { cookie } = await createAuthenticatedParticipant({ googleId: 'uid-me', email: 'me@test.com' })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'GET',
+      url: '/groups/predictions/friends?participantId=00000000-0000-0000-0000-000000000000',
+      headers: { cookie },
+    })
+
+    expect(res.statusCode).toBe(404)
+    expect(res.json().code).toBe('PARTICIPANT_NOT_FOUND')
+  })
+
   it('401 without cookie', async () => {
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/groups/predictions/friends' })

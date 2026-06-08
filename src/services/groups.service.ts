@@ -197,13 +197,24 @@ type FriendsGroupPredictionsDto =
 
 export async function findFriendsGroupPredictions(
   participantId: string,
+  friendId?: string,
 ): Promise<FriendsGroupPredictionsDto> {
+  if (friendId) {
+    if (friendId === participantId) {
+      throw new AppError(400, 'INVALID_FRIEND', 'Cannot request predictions for yourself')
+    }
+    const friend = await prisma.participant.findUnique({ where: { id: friendId }, select: { id: true } })
+    if (!friend) throw new AppError(404, 'PARTICIPANT_NOT_FOUND', 'Participant not found')
+  }
+
   const firstMatch = await prisma.match.findFirst({ orderBy: { scheduledAt: 'asc' } })
   if (!firstMatch || firstMatch.scheduledAt > new Date()) {
     return { available: false, availableAt: firstMatch?.scheduledAt ?? null }
   }
 
-  const others = await prisma.participant.findMany({ where: { id: { not: participantId } } })
+  const others = await prisma.participant.findMany({
+    where: friendId ? { id: friendId } : { id: { not: participantId } },
+  })
   const otherIds = others.map((p) => p.id)
 
   const [groups, allStandings, allPredictions, allLedgerEvents, ptsExact, bonusComplete] =
