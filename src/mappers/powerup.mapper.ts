@@ -5,6 +5,7 @@ export interface PowerupTeamDto {
   name: string
   code: string
   isTop8: boolean
+  flag: string | null
 }
 
 export interface MyPowerupsDto {
@@ -21,7 +22,7 @@ export interface FriendPowerupsDto {
 type PowerupWithTeams = Powerup & { darkHorseTeam: Team; disappointmentTeam: Team }
 
 function toPowerupTeamDto(team: Team): PowerupTeamDto {
-  return { teamId: team.id, name: team.name, code: team.code, isTop8: team.isTop8 }
+  return { teamId: team.id, name: team.name, code: team.code, isTop8: team.isTop8, flag: team.flag }
 }
 
 export function toMyPowerupsDto(powerup: PowerupWithTeams | null): MyPowerupsDto {

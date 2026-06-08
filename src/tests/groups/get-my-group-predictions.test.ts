@@ -86,6 +86,7 @@ describe('GET /groups/predictions/me', () => {
     expect(data[0].groupComplete).toBe(true)
     expect(data[0].rankings.length).toBe(4)
     expect(data[0].pointsEarned).toBeNull() // sin standings
+    expect(data[0].rankings[0].flag).toBe('https://flagcdn.com/w80/xx.png')
   })
 
   it('pointsEarned null si no hay standings aunque haya predicciones completas', async () => {

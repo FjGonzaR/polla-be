@@ -47,6 +47,7 @@ describe('GET /groups/thirds', () => {
     expect(body.data[0].teamId).toBe(team3Id)
     expect(body.data[0].label).toBe('A')
     expect(body.data[0].groupId).toBe(groupId)
+    expect(body.data[0].flag).toBe('https://flagcdn.com/w80/xx.png')
   })
 
   it('selected: false when team not yet saved as third prediction', async () => {

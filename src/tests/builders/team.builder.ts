@@ -6,6 +6,7 @@ export class TeamBuilder {
   private code = Math.random().toString(36).slice(2, 5).toUpperCase()
   private groupId: string | null = null
   private isTop8 = false
+  private flag: string | null = 'https://flagcdn.com/w80/xx.png'
 
   withName(name: string): this {
     this.name = name
@@ -27,6 +28,11 @@ export class TeamBuilder {
     return this
   }
 
+  withFlag(flag: string | null): this {
+    this.flag = flag
+    return this
+  }
+
   async build(): Promise<Team> {
     const groupId =
       this.groupId ??
@@ -37,7 +43,7 @@ export class TeamBuilder {
       ).id
 
     return prisma.team.create({
-      data: { name: this.name, code: this.code, groupId, isTop8: this.isTop8 },
+      data: { name: this.name, code: this.code, groupId, isTop8: this.isTop8, flag: this.flag },
     })
   }
 }

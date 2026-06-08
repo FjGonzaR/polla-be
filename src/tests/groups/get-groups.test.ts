@@ -32,10 +32,10 @@ describe('GET /groups', () => {
     const groupB = await prisma.group.create({ data: { name: 'Grupo B', label: 'B' } })
     const groupA = await prisma.group.create({ data: { name: 'Grupo A', label: 'A' } })
     await prisma.team.create({
-      data: { name: 'Brasil', code: 'BRA', groupId: groupB.id },
+      data: { name: 'Brasil', code: 'BRA', groupId: groupB.id, flag: 'https://flagcdn.com/w80/br.png' },
     })
     await prisma.team.create({
-      data: { name: 'Argentina', code: 'ARG', groupId: groupA.id },
+      data: { name: 'Argentina', code: 'ARG', groupId: groupA.id, flag: 'https://flagcdn.com/w80/ar.png' },
     })
 
     const server = await buildServer()
@@ -52,7 +52,9 @@ describe('GET /groups', () => {
     expect(data[1].label).toBe('B')
     expect(data[0].teams).toHaveLength(1)
     expect(data[0].teams[0].code).toBe('ARG')
+    expect(data[0].teams[0].flag).toBe('https://flagcdn.com/w80/ar.png')
     expect(data[1].teams[0].code).toBe('BRA')
+    expect(data[1].teams[0].flag).toBe('https://flagcdn.com/w80/br.png')
   })
 
   it('sin cookie → 401 MISSING_SESSION', async () => {

@@ -4,6 +4,7 @@ export interface KoTeamDto {
   id: string
   name: string
   code: string
+  flag: string | null
 }
 
 export interface KoResultDto {
@@ -86,7 +87,7 @@ export function toKoFriendDto(
 }
 
 export function toKoTeamDto(team: Team): KoTeamDto {
-  return { id: team.id, name: team.name, code: team.code }
+  return { id: team.id, name: team.name, code: team.code, flag: team.flag }
 }
 
 export function toKoRoundDto(round: Round): KoRoundDto {

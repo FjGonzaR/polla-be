@@ -35,8 +35,10 @@ describe('PUT /admin/top8', () => {
     })
 
     expect(res.statusCode).toBe(200)
-    expect(res.json().ok).toBe(true)
-    expect(res.json().teams).toHaveLength(8)
+    const body = res.json()
+    expect(body.ok).toBe(true)
+    expect(body.teams).toHaveLength(8)
+    expect(body.teams[0].flag).toBe('https://flagcdn.com/w80/xx.png')
 
     const updated = await prisma.team.findMany({ where: { id: { in: teamIds } } })
     expect(updated.every((t) => t.isTop8)).toBe(true)

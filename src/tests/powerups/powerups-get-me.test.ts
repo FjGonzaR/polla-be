@@ -20,7 +20,9 @@ describe('GET /powerups/predictions/me', () => {
     expect(body.darkHorse).not.toBeNull()
     expect(body.disappointment).not.toBeNull()
     expect(body.darkHorse.isTop8).toBe(false)
+    expect(body.darkHorse.flag).toBe('https://flagcdn.com/w80/xx.png')
     expect(body.disappointment.isTop8).toBe(true)
+    expect(body.disappointment.flag).toBe('https://flagcdn.com/w80/xx.png')
   })
 
   it('returns nulls when no powerups exist', async () => {

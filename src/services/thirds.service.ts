@@ -5,6 +5,7 @@ interface ThirdCandidateDto {
   teamId: string
   name: string
   code: string
+  flag: string | null
   groupId: string
   label: string
   selected: boolean
@@ -31,6 +32,7 @@ export async function findMyThirds(participantId: string): Promise<ThirdsDto> {
     teamId: c.teamId,
     name: c.team.name,
     code: c.team.code,
+    flag: c.team.flag,
     groupId: c.groupId,
     label: c.group.label,
     selected: selectedSet.has(c.teamId),

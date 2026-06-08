@@ -40,10 +40,11 @@ export interface Top8TeamDto {
   id: string
   name: string
   code: string
+  flag: string | null
 }
 
 export function toTop8TeamDto(team: Team): Top8TeamDto {
-  return { id: team.id, name: team.name, code: team.code }
+  return { id: team.id, name: team.name, code: team.code, flag: team.flag }
 }
 
 export interface AdminParticipantDto {

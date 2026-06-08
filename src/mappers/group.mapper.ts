@@ -5,6 +5,7 @@ export interface TeamDto {
   name: string
   code: string
   isTop8: boolean
+  flag: string | null
 }
 
 export interface GroupDto {
@@ -20,6 +21,7 @@ export function toTeamDto(team: Team): TeamDto {
     name: team.name,
     code: team.code,
     isTop8: team.isTop8,
+    flag: team.flag,
   }
 }
 

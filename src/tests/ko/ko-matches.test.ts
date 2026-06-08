@@ -30,8 +30,8 @@ describe('GET /ko/matches', () => {
     const server = await buildServer()
     const { cookie } = await createAuthenticatedParticipant()
 
-    const homeTeam = await new TeamBuilder().withName('Colombia').withCode('COL').build()
-    const awayTeam = await new TeamBuilder().withName('Brazil').withCode('BRA').build()
+    const homeTeam = await new TeamBuilder().withName('Colombia').withCode('COL').withFlag('https://flagcdn.com/w80/co.png').build()
+    const awayTeam = await new TeamBuilder().withName('Brazil').withCode('BRA').withFlag('https://flagcdn.com/w80/br.png').build()
     const futureDate = new Date(Date.now() + 86_400_000)
 
     await new MatchBuilder()
@@ -50,7 +50,9 @@ describe('GET /ko/matches', () => {
     expect(res.statusCode).toBe(200)
     const match = res.json().matches[0]
     expect(match.homeTeam.code).toBe('COL')
+    expect(match.homeTeam.flag).toBe('https://flagcdn.com/w80/co.png')
     expect(match.awayTeam.code).toBe('BRA')
+    expect(match.awayTeam.flag).toBe('https://flagcdn.com/w80/br.png')
     expect(match.homeTeamLabel).toBe('Colombia')
     expect(match.awayTeamLabel).toBe('Brazil')
     expect(match.myPrediction).toBeNull()

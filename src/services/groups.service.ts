@@ -67,6 +67,7 @@ interface RankingDto {
   name: string
   code: string
   isTop8: boolean
+  flag: string | null
   predictedPosition: number
 }
 
@@ -112,6 +113,7 @@ function computeGroupStatus(
       name: p.team.name,
       code: p.team.code,
       isTop8: p.team.isTop8,
+      flag: p.team.flag,
       predictedPosition: p.predictedPosition,
     }))
 

@@ -86,6 +86,7 @@ model Team {
   code                   String            @unique
   externalTeamId         String?           @unique
   isTop8                 Boolean           @default(false) @map("is_top8")
+  flag                   String?
   groupId                String            @map("group_id")
   group                  Group             @relation(fields: [groupId], references: [id])
   groupPredictions       GroupPrediction[]
