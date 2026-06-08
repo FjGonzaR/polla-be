@@ -62,6 +62,7 @@ model Participant {
   powerup          Powerup?
   koPredictions    KoPrediction[]
   scoreEvents      ScoreEvent[]
+  matchReminders   MatchReminder[]
 
   @@map("participants")
 }
@@ -133,6 +134,7 @@ model Match {
   externalMatchId String?        @unique @map("external_match_id")
   koPredictions   KoPrediction[]
   scoreEvents     ScoreEvent[]
+  reminders       MatchReminder[]
 
   @@map("matches")
 }
@@ -239,4 +241,16 @@ model ScoringParam {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("scoring_params")
+}
+
+model MatchReminder {
+  id            String      @id @default(uuid())
+  matchId       String      @map("match_id")
+  match         Match       @relation(fields: [matchId], references: [id])
+  participantId String      @map("participant_id")
+  participant   Participant @relation(fields: [participantId], references: [id])
+  sentAt        DateTime    @default(now()) @map("sent_at")
+
+  @@unique([matchId, participantId])
+  @@map("match_reminders")
 }
