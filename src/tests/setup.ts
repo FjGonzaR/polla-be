@@ -2,6 +2,7 @@ import { afterAll, afterEach } from 'vitest'
 import { prisma } from '../lib/prisma.js'
 
 afterEach(async () => {
+  await prisma.scoreEvent.deleteMany()
   await prisma.scoringParam.deleteMany()
   await prisma.groupPrediction.deleteMany()
   await prisma.koPrediction.deleteMany()

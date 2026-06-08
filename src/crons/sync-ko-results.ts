@@ -1,6 +1,7 @@
 import { MatchStatus, RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
+import { persistKoMatchScoreEvents, persistPowerupKoMatchEvents } from '../services/score-calculation.service.js'
 
 export async function syncKoResults(): Promise<void> {
   console.info('[sync-ko-results] Iniciando sincronización...')
@@ -72,6 +73,9 @@ export async function syncKoResults(): Promise<void> {
               winnerTeamId: winnerTeamId ?? undefined,
             },
           })
+
+          await persistKoMatchScoreEvents(partido.id)
+          await persistPowerupKoMatchEvents(partido.id)
 
           console.info(
             `[sync-ko-results] Partido ${partido.id} (${partido.round.slug}) ` +

@@ -61,6 +61,7 @@ model Participant {
   thirdPredictions ThirdPrediction[]
   powerup          Powerup?
   koPredictions    KoPrediction[]
+  scoreEvents      ScoreEvent[]
 
   @@map("participants")
 }
@@ -69,9 +70,11 @@ model Group {
   id               String            @id @default(uuid())
   name             String
   label            String            @unique
+  lastMatchAt      DateTime?         @map("last_match_at")
   teams            Team[]
   groupPredictions GroupPrediction[]
   standings        GroupStanding[]
+  scoreEvents      ScoreEvent[]
 
   @@map("groups")
 }
@@ -119,7 +122,6 @@ model Match {
   awayTeamId      String?        @map("away_team_id")
   awayTeam        Team?          @relation("AwayTeam", fields: [awayTeamId], references: [id])
   scheduledAt     DateTime       @map("scheduled_at")
-  lockedAt        DateTime?      @map("locked_at")
   reminderSent    Boolean        @default(false) @map("reminder_sent")
   scoreHome       Int?           @map("score_home")
   scoreAway       Int?           @map("score_away")
@@ -128,6 +130,7 @@ model Match {
   status          MatchStatus    @default(SCHEDULED)
   externalMatchId String?        @unique @map("external_match_id")
   koPredictions   KoPrediction[]
+  scoreEvents     ScoreEvent[]
 
   @@map("matches")
 }
@@ -202,11 +205,28 @@ model GroupStanding {
   pts              Int      @default(0)
   goalsFor         Int      @default(0) @map("goals_for")
   goalsAgainst     Int      @default(0) @map("goals_against")
+  matchesPlayed    Int      @default(0) @map("matches_played")
   realPosition     Int?     @map("real_position")
   qualifiedAsThird Boolean  @default(false) @map("qualified_as_third")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("group_standings")
+}
+
+model ScoreEvent {
+  id            String      @id @default(uuid())
+  participantId String      @map("participant_id")
+  participant   Participant @relation(fields: [participantId], references: [id])
+  paramKey      String      @map("param_key")
+  matchId       String?     @map("match_id")
+  match         Match?      @relation(fields: [matchId], references: [id])
+  groupId       String?     @map("group_id")
+  group         Group?      @relation(fields: [groupId], references: [id])
+  roundSlug     RoundSlug?  @map("round_slug")
+  points        Int
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@map("score_events")
 }
 
 model ScoringParam {

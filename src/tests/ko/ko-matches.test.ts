@@ -33,14 +33,12 @@ describe('GET /ko/matches', () => {
     const homeTeam = await new TeamBuilder().withName('Colombia').withCode('COL').build()
     const awayTeam = await new TeamBuilder().withName('Brazil').withCode('BRA').build()
     const futureDate = new Date(Date.now() + 86_400_000)
-    const lockedAt = new Date(Date.now() - 1_000)
 
     await new MatchBuilder()
       .withRoundSlug('R32')
       .withHomeTeamId(homeTeam.id)
       .withAwayTeamId(awayTeam.id)
       .withScheduledAt(futureDate)
-      .withLockedAt(lockedAt)
       .build()
 
     const res = await server.inject({
@@ -94,18 +92,18 @@ describe('GET /ko/matches', () => {
     expect(pred.pointsEarned).toBeNull()
   })
 
-  it('myPrediction.lockedIn = true when lockedAt in the past', async () => {
+  it('myPrediction.lockedIn = true when match scheduled within 30 min', async () => {
     const server = await buildServer()
     const { participant, cookie } = await createAuthenticatedParticipant()
 
     const homeTeam = await new TeamBuilder().build()
     const awayTeam = await new TeamBuilder().build()
-    const pastLockedAt = new Date(Date.now() - 3_600_000)
+    // scheduledAt 29 min from now → lock time (scheduledAt - 30min) was 1 min ago
     const match = await new MatchBuilder()
       .withRoundSlug('R32')
       .withHomeTeamId(homeTeam.id)
       .withAwayTeamId(awayTeam.id)
-      .withLockedAt(pastLockedAt)
+      .withScheduledAt(new Date(Date.now() + 29 * 60 * 1000))
       .build()
 
     await buildKoPrediction({
