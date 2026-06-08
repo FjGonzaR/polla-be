@@ -9,12 +9,10 @@ import { createAuthenticatedParticipant } from '../helpers/auth.helper.js'
 async function buildKoMatch() {
   const homeTeam = await new TeamBuilder().build()
   const awayTeam = await new TeamBuilder().build()
-  const futureLockedAt = new Date(Date.now() + 86_400_000)
   const match = await new MatchBuilder()
     .withRoundSlug('R32')
     .withHomeTeamId(homeTeam.id)
     .withAwayTeamId(awayTeam.id)
-    .withLockedAt(futureLockedAt)
     .build()
   return { match, homeTeam, awayTeam }
 }
@@ -79,12 +77,12 @@ describe('POST /ko/matches/:matchId/predictions', () => {
     const { cookie } = await createAuthenticatedParticipant()
     const homeTeam = await new TeamBuilder().build()
     const awayTeam = await new TeamBuilder().build()
-    const pastLockedAt = new Date(Date.now() - 1_000)
+    // scheduledAt 29 min from now → lock threshold already passed
     const match = await new MatchBuilder()
       .withRoundSlug('R32')
       .withHomeTeamId(homeTeam.id)
       .withAwayTeamId(awayTeam.id)
-      .withLockedAt(pastLockedAt)
+      .withScheduledAt(new Date(Date.now() + 29 * 60 * 1000))
       .build()
 
     const res = await server.inject({

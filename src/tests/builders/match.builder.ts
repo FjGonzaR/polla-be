@@ -13,7 +13,7 @@ const ROUND_DEFAULTS: Record<RoundSlug, { name: string; order: number; matchCoun
 
 export class MatchBuilder {
   private scheduledAt = new Date(Date.now() + 86_400_000)
-  private lockedAt: Date | null = null
+  private roundLockedAt: Date | null = null
   private roundSlug: RoundSlug = 'GROUP'
   private homeTeamId: string | null = null
   private awayTeamId: string | null = null
@@ -27,8 +27,8 @@ export class MatchBuilder {
     return this
   }
 
-  withLockedAt(date: Date): this {
-    this.lockedAt = date
+  withRoundLockedAt(date: Date): this {
+    this.roundLockedAt = date
     return this
   }
 
@@ -59,8 +59,8 @@ export class MatchBuilder {
     const defaults = ROUND_DEFAULTS[this.roundSlug]
     const round = await prisma.round.upsert({
       where: { slug: this.roundSlug },
-      create: { name: defaults.name, slug: this.roundSlug, order: defaults.order, matchCount: defaults.matchCount, lockedAt: this.lockedAt },
-      update: { lockedAt: this.lockedAt },
+      create: { name: defaults.name, slug: this.roundSlug, order: defaults.order, matchCount: defaults.matchCount, lockedAt: this.roundLockedAt },
+      update: { lockedAt: this.roundLockedAt },
     })
 
     const matchNumber = Math.floor(Math.random() * 100_000)
@@ -69,7 +69,6 @@ export class MatchBuilder {
         roundId: round.id,
         matchNumber,
         scheduledAt: this.scheduledAt,
-        lockedAt: this.lockedAt,
         homeTeamId: this.homeTeamId,
         awayTeamId: this.awayTeamId,
         scoreHome: this.scoreHome,

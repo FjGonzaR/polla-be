@@ -1,6 +1,45 @@
-import { RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
+import {
+  isGroupFinalized,
+  persistGroupScoreEvents,
+  persistThirdScoreEvents,
+} from '../services/score-calculation.service.js'
+
+async function maybeUpdateQualifiedThirds(): Promise<void> {
+  const allGroups = await prisma.group.findMany({
+    select: { id: true, lastMatchAt: true, standings: { select: { matchesPlayed: true, teamId: true, pts: true, goalsFor: true, goalsAgainst: true, realPosition: true } } },
+  })
+
+  if (allGroups.length !== 12) return
+  const allFinalized = allGroups.every((g) => isGroupFinalized(g, g.standings))
+  if (!allFinalized) return
+
+  const thirds = allGroups
+    .map((g) => g.standings.find((s) => s.realPosition === 3))
+    .filter((s): s is NonNullable<typeof s> => s != null)
+    .sort((a, b) =>
+      b.pts - a.pts ||
+      (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) ||
+      b.goalsFor - a.goalsFor,
+    )
+
+  if (thirds.length !== 12) return
+
+  const qualifiedIds = new Set(thirds.slice(0, 8).map((s) => s.teamId))
+
+  await prisma.$transaction(
+    thirds.map((s) =>
+      prisma.groupStanding.update({
+        where: { teamId: s.teamId },
+        data: { qualifiedAsThird: qualifiedIds.has(s.teamId) },
+      }),
+    ),
+  )
+
+  await persistThirdScoreEvents()
+  console.info('[sync-standings] Thirds ranking updated and score events persisted')
+}
 
 export async function syncStandings(): Promise<void> {
   console.info('[sync-standings] Iniciando sincronización...')
@@ -26,6 +65,7 @@ export async function syncStandings(): Promise<void> {
         gf: number
         ga: number
         gd: number
+        mp: number
       }> = []
 
       for (const teamExterno of grupoExterno.teams) {
@@ -44,6 +84,7 @@ export async function syncStandings(): Promise<void> {
           gf: parseInt(teamExterno.gf),
           ga: parseInt(teamExterno.ga),
           gd: parseInt(teamExterno.gd),
+          mp: parseInt(teamExterno.mp),
         })
       }
 
@@ -62,7 +103,7 @@ export async function syncStandings(): Promise<void> {
       })
 
       for (let i = 0; i < ordenados.length; i++) {
-        const { team, pts, gf, ga } = ordenados[i]
+        const { team, pts, gf, ga, mp } = ordenados[i]
         const realPosition = i + 1
 
         await prisma.groupStanding.upsert({
@@ -71,6 +112,7 @@ export async function syncStandings(): Promise<void> {
             pts,
             goalsFor: gf,
             goalsAgainst: ga,
+            matchesPlayed: mp,
             realPosition,
             groupId: group.id,
           },
@@ -80,6 +122,7 @@ export async function syncStandings(): Promise<void> {
             pts,
             goalsFor: gf,
             goalsAgainst: ga,
+            matchesPlayed: mp,
             realPosition,
             qualifiedAsThird: false,
           },
@@ -88,7 +131,14 @@ export async function syncStandings(): Promise<void> {
       }
 
       gruposSincronizados++
+
+      const updatedStandings = await prisma.groupStanding.findMany({ where: { groupId: group.id } })
+      if (isGroupFinalized(group, updatedStandings)) {
+        await persistGroupScoreEvents(group.id)
+      }
     }
+
+    await maybeUpdateQualifiedThirds()
 
     console.info(
       `[sync-standings] OK — ${gruposSincronizados} grupos, ` +

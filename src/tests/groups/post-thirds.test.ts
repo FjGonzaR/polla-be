@@ -126,7 +126,7 @@ describe('POST /groups/thirds', () => {
   })
 
   it('423 when group phase is locked', async () => {
-    await new MatchBuilder().withLockedAt(new Date(Date.now() - 86_400_000)).build()
+    await new MatchBuilder().withRoundLockedAt(new Date(Date.now() - 86_400_000)).build()
 
     const server = await buildServer()
     const res = await server.inject({
