@@ -54,8 +54,8 @@ model Participant {
   phone            String?
   hasPhone         Boolean           @default(false) @map("has_phone")
   role             ParticipantRole   @default(PARTICIPANT)
-  invitationId     String            @unique @map("invitation_id")
-  invitation       Invitation        @relation(fields: [invitationId], references: [id])
+  invitationId     String?           @unique @map("invitation_id")
+  invitation       Invitation?       @relation(fields: [invitationId], references: [id])
   createdAt        DateTime          @default(now()) @map("created_at")
   groupPredictions GroupPrediction[]
   thirdPredictions ThirdPrediction[]

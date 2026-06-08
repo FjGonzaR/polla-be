@@ -12,13 +12,14 @@ import {
 } from '../services/admin.service.js'
 
 export default async function adminRoutes(fastify: FastifyInstance) {
+  const adminGuard = { preHandler: [fastify.authenticate, fastify.requireAdmin] }
 
-  fastify.post('/invitations', async (_request, reply) => {
+  fastify.post('/invitations', adminGuard, async (_request, reply) => {
     const inv = await createInvitation()
     return reply.code(201).send(inv)
   })
 
-  fastify.get('/invitations', async (request, reply) => {
+  fastify.get('/invitations', adminGuard, async (request, reply) => {
     const { status, page, pageSize } = request.query as {
       status?: string
       page?: string
@@ -36,27 +37,27 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return reply.code(200).send(result)
   })
 
-  fastify.put('/ko/matches/:matchId/result', async (request, reply) => {
+  fastify.put('/ko/matches/:matchId/result', adminGuard, async (request, reply) => {
     const { matchId } = request.params as { matchId: string }
     const body = request.body as { scoreHome: number; scoreAway: number; winnerTeamId: string }
     const result = await setMatchResult(matchId, body)
     return reply.code(200).send(result)
   })
 
-  fastify.put('/groups/thirds', async (request, reply) => {
+  fastify.put('/groups/thirds', adminGuard, async (request, reply) => {
     const { teamIds } = request.body as { teamIds: string[] }
     await setQualifiedThirds(teamIds)
     return reply.code(200).send({ ok: true })
   })
 
-  fastify.put('/scoring-params/:key', async (request, reply) => {
+  fastify.put('/scoring-params/:key', adminGuard, async (request, reply) => {
     const { key } = request.params as { key: string }
     const { value } = request.body as { value: number }
     const data = await updateScoringParam(key, value)
     return reply.code(200).send(data)
   })
 
-  fastify.post('/groups', async (request, reply) => {
+  fastify.post('/groups', adminGuard, async (request, reply) => {
     const { groups } = request.body as {
       groups: {
         label: string
@@ -69,7 +70,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return reply.code(201).send({ ok: true, ...result })
   })
 
-  fastify.post('/ko/matches', async (request, reply) => {
+  fastify.post('/ko/matches', adminGuard, async (request, reply) => {
     const { roundSlug, matches } = request.body as {
       roundSlug: RoundSlug
       matches: {
@@ -86,13 +87,13 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     return reply.code(201).send({ ok: true, ...result })
   })
 
-  fastify.put('/top8', async (request, reply) => {
+  fastify.put('/top8', adminGuard, async (request, reply) => {
     const { teamIds } = request.body as { teamIds: string[] }
     const result = await setTop8Teams(teamIds)
     return reply.code(200).send(result)
   })
 
-  fastify.get('/participants', async (_request, reply) => {
+  fastify.get('/participants', adminGuard, async (_request, reply) => {
     const data = await listParticipants()
     return reply.code(200).send({ data })
   })

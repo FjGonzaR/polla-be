@@ -21,8 +21,21 @@ export async function loginOrSignup(
 
   if (existing) return existing
 
+  if (googlePayload.sub === process.env.ADMIN_GOOGLE_ID) {
+    return prisma.participant.create({
+      data: {
+        googleId: googlePayload.sub,
+        name: googlePayload.name ?? 'Admin',
+        email: googlePayload.email ?? '',
+        phone: null,
+        hasPhone: false,
+        role: ParticipantRole.ADMIN,
+      },
+    })
+  }
+
   if (!code || !phone) {
-    throw new AppError(403, 'NEEDS_SIGNUP', 'Necesitas un código de invitación para registrarte')
+    throw new AppError(403, 'NEEDS_SIGNUP', 'Needs an invitation code to register')
   }
 
   const e164 = /^\+[1-9]\d{7,14}$/

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { prisma } from '../../lib/prisma.js'
 import { buildServer } from '../../server.js'
 import { buildInvitation } from '../builders/invitation.builder.js'
@@ -13,7 +13,10 @@ vi.mock('../../lib/google-auth.js', () => ({
 }))
 
 describe('POST /auth/google', () => {
+  const ADMIN_SUB = 'google-admin-sub'
+
   beforeEach(() => mockVerifyGoogleToken.mockReset())
+  afterEach(() => { delete process.env.ADMIN_GOOGLE_ID })
 
   it('signup: new user with valid code and phone → 200, cookie set, participant created', async () => {
     const invitation = await buildInvitation({ code: 'SIGNUP1' })
@@ -143,6 +146,51 @@ describe('POST /auth/google', () => {
 
     expect(res.statusCode).toBe(401)
     expect(res.json().code).toBe('INVALID_CREDENTIAL')
+  })
+
+  it('admin first login: google sub matches ADMIN_GOOGLE_ID → 200, role=ADMIN, no invite needed', async () => {
+    process.env.ADMIN_GOOGLE_ID = ADMIN_SUB
+    mockVerifyGoogleToken.mockResolvedValue({
+      sub: ADMIN_SUB,
+      email: 'admin@test.com',
+      name: 'Admin',
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/google',
+      headers: { 'content-type': 'application/json' },
+      payload: { credential: 'valid-token' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.headers['set-cookie']).toMatch(/session=/)
+    const created = await prisma.participant.findUnique({ where: { googleId: ADMIN_SUB } })
+    expect(created!.role).toBe('ADMIN')
+    expect(created!.invitationId).toBeNull()
+  })
+
+  it('admin re-login: existing admin → 200, no duplicate', async () => {
+    process.env.ADMIN_GOOGLE_ID = ADMIN_SUB
+    await buildParticipant({ googleId: ADMIN_SUB, role: 'ADMIN' })
+    mockVerifyGoogleToken.mockResolvedValue({
+      sub: ADMIN_SUB,
+      email: 'admin@test.com',
+      name: 'Admin',
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/auth/google',
+      headers: { 'content-type': 'application/json' },
+      payload: { credential: 'valid-token' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const count = await prisma.participant.count({ where: { googleId: ADMIN_SUB } })
+    expect(count).toBe(1)
   })
 
   it('new user with non-existent code → 404 INVITE_NOT_FOUND', async () => {

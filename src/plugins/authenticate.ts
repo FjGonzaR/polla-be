@@ -19,7 +19,7 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify: FastifyInstance) 
   fastify.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     const token = request.cookies?.session
     if (!token) {
-      return reply.code(401).send({ code: 'MISSING_SESSION', message: 'Sesión requerida' })
+      return reply.code(401).send({ code: 'MISSING_SESSION', message: 'Session required' })
     }
     try {
       const { userId } = verifySession(token)
@@ -28,13 +28,13 @@ const authenticatePlugin: FastifyPluginAsync = async (fastify: FastifyInstance) 
       })
       request.user = participant
     } catch {
-      return reply.code(401).send({ code: 'INVALID_SESSION', message: 'Sesión inválida o expirada' })
+      return reply.code(401).send({ code: 'INVALID_SESSION', message: 'Invalid or expired session' })
     }
   })
 
   fastify.decorate('requireAdmin', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!request.user || request.user.role !== ParticipantRole.ADMIN) {
-      return reply.code(403).send({ code: 'FORBIDDEN', message: 'Acceso denegado' })
+      return reply.code(403).send({ code: 'FORBIDDEN', message: 'Access denied' })
     }
   })
 }
