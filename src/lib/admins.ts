@@ -1,0 +1,1 @@
+export const ADMIN_PHONES = ['+573023595622', '+573175027021']
