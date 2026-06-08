@@ -208,7 +208,7 @@ paths:
                 $ref: '#/components/schemas/Invitation'
               example:
                 id: "uuid"
-                code: "X7K2MP"
+                code: "XKMP1234"
                 status: "AVAILABLE"
                 usedAt: null
                 expiresAt: "2026-06-12T15:00:00.000Z"
@@ -221,7 +221,7 @@ paths:
       tags: [admin]
       summary: Lista todos los códigos de invitación
       operationId: getAdminInvitations
-      description: Soporta filtro opcional por estado. Solo accesible por admin.
+      description: Soporta filtro opcional por estado y paginación. Solo accesible por admin.
       parameters:
         - name: status
           in: query
@@ -230,14 +230,30 @@ paths:
             type: string
             enum: [AVAILABLE, USED, EXPIRED]
           description: "Filtra por estado. Si se omite retorna todos."
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: "Número de página (base 1)."
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 20
+          description: "Cantidad de resultados por página."
       responses:
         '200':
-          description: Lista de invitaciones
+          description: Lista paginada de invitaciones
           content:
             application/json:
               schema:
                 type: object
-                required: [data, total]
+                required: [data, total, page, pageSize]
                 properties:
                   data:
                     type: array
@@ -245,11 +261,20 @@ paths:
                       $ref: '#/components/schemas/Invitation'
                   total:
                     type: integer
+                    description: "Total de invitaciones que coinciden con el filtro."
+                  page:
+                    type: integer
+                    description: "Página actual."
+                  pageSize:
+                    type: integer
+                    description: "Tamaño de página usado."
               example:
                 total: 2
+                page: 1
+                pageSize: 20
                 data:
-                  - { id: "uuid1", code: "X7K2MP", status: "USED",      usedAt: "2026-06-11T16:00:00Z", expiresAt: "2026-06-12T15:00:00Z", createdAt: "2026-06-11T15:00:00Z" }
-                  - { id: "uuid2", code: "A3BNQ9", status: "AVAILABLE", usedAt: null,                   expiresAt: "2026-06-12T16:00:00Z", createdAt: "2026-06-11T16:00:00Z" }
+                  - { id: "uuid1", code: "XKMP1234", status: "USED",      usedAt: "2026-06-11T16:00:00Z", expiresAt: "2026-06-12T15:00:00Z", createdAt: "2026-06-11T15:00:00Z" }
+                  - { id: "uuid2", code: "ABNQ5678", status: "AVAILABLE", usedAt: null,                   expiresAt: "2026-06-12T16:00:00Z", createdAt: "2026-06-11T16:00:00Z" }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
