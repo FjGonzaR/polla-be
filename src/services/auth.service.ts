@@ -2,6 +2,7 @@ import { InvitationStatus, ParticipantRole } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { verifyGoogleToken } from '../lib/google-auth.js'
 import { AppError } from '../lib/errors.js'
+import { ADMIN_PHONES } from '../lib/admins.js'
 
 export async function loginOrSignup(
   credential: string,
@@ -21,14 +22,14 @@ export async function loginOrSignup(
 
   if (existing) return existing
 
-  if (googlePayload.sub === process.env.ADMIN_GOOGLE_ID) {
+  if (phone && ADMIN_PHONES.includes(phone)) {
     return prisma.participant.create({
       data: {
         googleId: googlePayload.sub,
         name: googlePayload.name ?? 'Admin',
         email: googlePayload.email ?? '',
-        phone: null,
-        hasPhone: false,
+        phone,
+        hasPhone: true,
         role: ParticipantRole.ADMIN,
       },
     })
