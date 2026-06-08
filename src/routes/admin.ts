@@ -8,6 +8,7 @@ import {
   loadGroups,
   loadKoMatches,
   setTop8Teams,
+  listParticipants,
 } from '../services/admin.service.js'
 
 export default async function adminRoutes(fastify: FastifyInstance) {
@@ -40,8 +41,8 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.put('/ko/matches/:matchId/result', async (request, reply) => {
     const { matchId } = request.params as { matchId: string }
     const body = request.body as { scoreHome: number; scoreAway: number; winnerTeamId: string }
-    await setMatchResult(matchId, body)
-    return reply.code(200).send({ ok: true })
+    const result = await setMatchResult(matchId, body)
+    return reply.code(200).send(result)
   })
 
   fastify.put('/groups/thirds', async (request, reply) => {
@@ -91,5 +92,10 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const { teamIds } = request.body as { teamIds: string[] }
     const result = await setTop8Teams(teamIds)
     return reply.code(200).send(result)
+  })
+
+  fastify.get('/participants', async (_request, reply) => {
+    const data = await listParticipants()
+    return reply.code(200).send({ data })
   })
 }

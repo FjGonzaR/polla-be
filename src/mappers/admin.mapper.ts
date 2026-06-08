@@ -1,4 +1,4 @@
-import type { Invitation, InvitationStatus, Participant, ScoringParam, Team } from '@prisma/client'
+import type { Invitation, InvitationStatus, Participant, ParticipantRole, ScoringParam, Team } from '@prisma/client'
 
 export interface InvitationDto {
   id: string
@@ -44,4 +44,27 @@ export interface Top8TeamDto {
 
 export function toTop8TeamDto(team: Team): Top8TeamDto {
   return { id: team.id, name: team.name, code: team.code }
+}
+
+export interface AdminParticipantDto {
+  id: string
+  name: string
+  email: string
+  phone: string | null
+  role: ParticipantRole
+  totalScore: number
+}
+
+export function toAdminParticipantDto(
+  participant: Participant,
+  totalScore: number,
+): AdminParticipantDto {
+  return {
+    id: participant.id,
+    name: participant.name,
+    email: participant.email,
+    phone: participant.phone,
+    role: participant.role,
+    totalScore,
+  }
 }

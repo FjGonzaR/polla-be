@@ -599,7 +599,128 @@ paths:
       operationId: getAdminParticipants
       responses:
         '200':
-          description: Pendiente de implementar
+          description: Lista de participantes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminParticipant'
+              example:
+                data:
+                  - id: "uuid-juan"
+                    name: "Juan"
+                    email: "juan@gmail.com"
+                    phone: "+573001234567"
+                    role: "PARTICIPANT"
+                    totalScore: 145
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/groups/thirds:
+    put:
+      tags: [admin]
+      summary: Registra los 8 mejores terceros oficiales del torneo
+      operationId: putAdminGroupsThirds
+      description: >
+        El admin marca cuáles 8 equipos clasificaron como mejores terceros oficialmente.
+        Todos los teamIds deben ser equipos que hayan quedado en posición 3 real según
+        los standings del torneo. Dispara el recálculo de puntos por terceros.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [teamIds]
+              properties:
+                teamIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+                  minItems: 8
+                  maxItems: 8
+            example:
+              teamIds:
+                - "uuid-col"
+                - "uuid-uru"
+                - "uuid-sen"
+                - "uuid-pol"
+                - "uuid-cro"
+                - "uuid-aus"
+                - "uuid-mar"
+                - "uuid-irn"
+      responses:
+        '200':
+          description: Terceros registrados correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+              example: { ok: true }
+        '400':
+          description: teamId no válido o cantidad incorrecta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                cantidad_incorrecta:
+                  value: { code: "INVALID_THIRDS_COUNT", message: "Exactly 8 team IDs required" }
+                equipo_invalido:
+                  value: { code: "INVALID_THIRD_TEAM", message: "Team uuid-xxx is not a third-place team" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/whatsapp/qr:
+    get:
+      tags: [admin]
+      summary: Retorna el QR de WhatsApp para vincular el bot
+      operationId: getAdminWhatsappQr
+      description: >
+        Retorna una imagen PNG con el QR para vincular la sesión de WhatsApp.
+        Si la sesión ya está activa retorna status connected.
+        Si aún no hay QR disponible retorna 503.
+      responses:
+        '200':
+          description: QR como imagen PNG o status connected
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, example: connected }
+        '503':
+          description: QR aún no disponible — reintentar en unos segundos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message]
+                properties:
+                  status: { type: string, example: initializing }
+                  message: { type: string }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 
   # ── GROUPS ──────────────────────────────────────────────────────────────────
 
@@ -1626,6 +1747,17 @@ components:
         role:
           type: string
           enum: [PARTICIPANT, ADMIN]
+
+    AdminParticipant:
+      type: object
+      required: [id, name, email, phone, role, totalScore]
+      properties:
+        id:          { type: string, format: uuid }
+        name:        { type: string }
+        email:       { type: string, format: email }
+        phone:       { type: [string, 'null'], description: "Número E.164 o null si no registró" }
+        role:        { type: string, enum: [PARTICIPANT, ADMIN] }
+        totalScore:  { type: integer, description: "Puntos acumulados hasta el momento" }
 
     Invitation:
       type: object

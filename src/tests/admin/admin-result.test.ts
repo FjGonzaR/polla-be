@@ -38,7 +38,12 @@ describe('PUT /admin/ko/matches/:matchId/result', () => {
     })
 
     expect(res.statusCode).toBe(200)
-    expect(res.json().ok).toBe(true)
+    const body = res.json()
+    expect(body.ok).toBe(true)
+    expect(body.matchId).toBe(match.id)
+    expect(body.scoreHome).toBe(2)
+    expect(body.scoreAway).toBe(1)
+    expect(body.winnerTeamId).toBe(home.id)
 
     const updated = await prisma.match.findUnique({ where: { id: match.id } })
     expect(updated?.scoreHome).toBe(2)

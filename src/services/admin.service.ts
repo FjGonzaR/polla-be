@@ -6,7 +6,14 @@ import {
   persistPowerupKoMatchEvents,
   persistThirdScoreEvents,
 } from './score-calculation.service.js'
-import { toScoringParamDto, toTop8TeamDto, type ScoringParamDto, type Top8TeamDto } from '../mappers/admin.mapper.js'
+import {
+  toScoringParamDto,
+  toTop8TeamDto,
+  toAdminParticipantDto,
+  type ScoringParamDto,
+  type Top8TeamDto,
+  type AdminParticipantDto,
+} from '../mappers/admin.mapper.js'
 
 interface MatchResultInput {
   scoreHome: number
@@ -14,7 +21,15 @@ interface MatchResultInput {
   winnerTeamId: string
 }
 
-export async function setMatchResult(matchId: string, body: MatchResultInput): Promise<void> {
+interface MatchResultDto {
+  ok: boolean
+  matchId: string
+  scoreHome: number
+  scoreAway: number
+  winnerTeamId: string
+}
+
+export async function setMatchResult(matchId: string, body: MatchResultInput): Promise<MatchResultDto> {
   const match = await prisma.match.findUnique({ where: { id: matchId } })
   if (!match) throw new AppError(404, 'MATCH_NOT_FOUND', 'Match not found')
 
@@ -34,6 +49,8 @@ export async function setMatchResult(matchId: string, body: MatchResultInput): P
 
   await persistKoMatchScoreEvents(matchId)
   await persistPowerupKoMatchEvents(matchId)
+
+  return { ok: true, matchId, ...body }
 }
 
 export async function setQualifiedThirds(teamIds: string[]): Promise<void> {
@@ -180,4 +197,15 @@ export async function setTop8Teams(teamIds: string[]): Promise<{ ok: boolean; te
 
   const updated = teams.map((t) => ({ ...t, isTop8: true }))
   return { ok: true, teams: updated.filter((t) => idSet.has(t.id)).map(toTop8TeamDto) }
+}
+
+export async function listParticipants(): Promise<AdminParticipantDto[]> {
+  const [participants, scoreGroups] = await Promise.all([
+    prisma.participant.findMany({ orderBy: { name: 'asc' } }),
+    prisma.scoreEvent.groupBy({ by: ['participantId'], _sum: { points: true } }),
+  ])
+
+  const pointsMap = new Map(scoreGroups.map((g) => [g.participantId, Number(g._sum.points ?? 0)]))
+
+  return participants.map((p) => toAdminParticipantDto(p, pointsMap.get(p.id) ?? 0))
 }
