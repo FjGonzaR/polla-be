@@ -91,10 +91,11 @@ describe('GET /scoreboard', () => {
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
 
     expect(res.statusCode).toBe(200)
-    const data = res.json<{ rank: number; totalPoints: number; participant: { name: string } }[]>()
-    expect(data.length).toBe(2)
-    expect(data.every((e) => e.totalPoints === 0)).toBe(true)
-    expect(data.every((e) => e.rank === 1)).toBe(true)
+    const body = res.json<{ updatedAt: string; data: { rank: number; total: number; participant: { name: string } }[] }>()
+    expect(body.updatedAt).toBeDefined()
+    expect(body.data.length).toBe(2)
+    expect(body.data.every((e) => e.total === 0)).toBe(true)
+    expect(body.data.every((e) => e.rank === 1)).toBe(true)
   })
 
   it('returns correct ranking, tiebreaker, and prizes', async () => {
@@ -120,22 +121,20 @@ describe('GET /scoreboard', () => {
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
 
     expect(res.statusCode).toBe(200)
-    const data = res.json<{ rank: number; totalPoints: number; participant: { name: string }; prize: number | null; exactKoScores: number }[]>()
+    const { data } = res.json<{ data: { rank: number; total: number; participant: { name: string }; prize: number | null }[] }>()
 
     expect(data[0].participant.name).toBe('Beta')
     expect(data[0].rank).toBe(1)
-    expect(data[0].totalPoints).toBe(100)
-    expect(data[0].exactKoScores).toBe(2)
+    expect(data[0].total).toBe(100)
     expect(data[0].prize).toBe(700000)
 
     expect(data[1].participant.name).toBe('Alpha')
     expect(data[1].rank).toBe(2)
-    expect(data[1].exactKoScores).toBe(1)
     expect(data[1].prize).toBe(250000)
 
     expect(data[2].participant.name).toBe('Gamma')
     expect(data[2].rank).toBe(3)
-    expect(data[2].totalPoints).toBe(50)
+    expect(data[2].total).toBe(50)
     expect(data[2].prize).toBe(50000)
   })
 
@@ -154,7 +153,7 @@ describe('GET /scoreboard', () => {
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
 
     expect(res.statusCode).toBe(200)
-    const data = res.json<{ rank: number }[]>()
+    const { data } = res.json<{ data: { rank: number }[] }>()
     expect(data.every((e) => e.rank === 1)).toBe(true)
   })
 
@@ -189,8 +188,8 @@ describe('GET /scoreboard', () => {
 
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ totalPoints: number }[]>().find((e) => true)
-    expect(entry?.totalPoints).toBe(4 * 3 + 5) // 17
+    const entry = res.json<{ data: { total: number }[] }>().data.find(() => true)
+    expect(entry?.total).toBe(4 * 3 + 5) // 17
   })
 
   it('group predictions: 2/4 exact → pts_group_position_exact*2, no bonus', async () => {
@@ -217,8 +216,8 @@ describe('GET /scoreboard', () => {
 
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ totalPoints: number }[]>()[0]
-    expect(entry.totalPoints).toBe(2 * 3) // 6, no bonus
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    expect(entry.total).toBe(2 * 3) // 6, no bonus
   })
 
   it('KO advances correct + exact score → pts reflected via persistKoMatchScoreEvents', async () => {
@@ -238,9 +237,9 @@ describe('GET /scoreboard', () => {
 
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ totalPoints: number }[]>()[0]
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
     // (4 + 6) * scale_r32(1) = 10
-    expect(entry.totalPoints).toBe(10)
+    expect(entry.total).toBe(10)
   })
 
   it('KO triple active + exact score → adds mult_triple bonus', async () => {
@@ -260,9 +259,9 @@ describe('GET /scoreboard', () => {
 
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ totalPoints: number }[]>()[0]
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
     // (4 + 6) * 1 + 3 = 13
-    expect(entry.totalPoints).toBe(13)
+    expect(entry.total).toBe(13)
   })
 
   it('KO triple active + wrong exact score → 0 pts (triple-or-nothing penalty)', async () => {
@@ -283,8 +282,8 @@ describe('GET /scoreboard', () => {
 
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ totalPoints: number }[]>()[0]
-    expect(entry.totalPoints).toBe(0)
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    expect(entry.total).toBe(0)
   })
 
   it('dark horse team wins → pts_dark_horse_per_round via persistPowerupKoMatchEvents', async () => {
@@ -312,8 +311,8 @@ describe('GET /scoreboard', () => {
 
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ totalPoints: number }[]>()[0]
-    expect(entry.totalPoints).toBe(8)
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    expect(entry.total).toBe(8)
   })
 
   it('disappointment team wins → negative pts via persistPowerupKoMatchEvents', async () => {
@@ -337,7 +336,7 @@ describe('GET /scoreboard', () => {
 
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ totalPoints: number }[]>()[0]
-    expect(entry.totalPoints).toBe(-5)
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    expect(entry.total).toBe(-5)
   })
 })

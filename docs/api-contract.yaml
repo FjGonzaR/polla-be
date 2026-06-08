@@ -903,6 +903,7 @@ paths:
                     available: true
                     data:
                       - participant: { id: "uuid-juan", name: "Juan" }
+                        totalGroupPoints: 22
                         predictions:
                           - groupId: "uuid-A"
                             label: "A"
@@ -1584,8 +1585,7 @@ paths:
       operationId: getScoreboard
       description: >
         Retorna todos los participantes ordenados por puntaje total descendente.
-        El puntaje se calcula on-demand al momento del request, usando el caché
-        del cron de 1AM si está disponible.
+        El puntaje se calcula on-demand al momento del request.
         prize se incluye para rank 1, 2 y 3. Null para el resto.
         Criterio de desempate: mayor cantidad de marcadores exactos acertados en KO.
       responses:
@@ -1600,7 +1600,7 @@ paths:
                   updatedAt:
                     type: string
                     format: date-time
-                    description: "Timestamp del último recálculo (cron 1AM u on-demand)"
+                    description: "Timestamp del último recálculo (on-demand)"
                   data:
                     type: array
                     items:
@@ -1929,7 +1929,7 @@ components:
 
     ParticipantPredictions:
       type: object
-      required: [participant, predictions]
+      required: [participant, predictions, totalGroupPoints]
       properties:
         participant:
           type: object
@@ -1941,6 +1941,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/GroupPrediction'
+        totalGroupPoints:
+          type: integer
+          description: "Suma de puntos obtenidos en todos los grupos. 0 mientras no hay resultados."
 
     KoResult:
       type: object
@@ -2184,13 +2187,13 @@ components:
           properties:
             groups:
               type: integer
-              description: "Puntos de fase de grupos (posiciones acertadas)"
+              description: "Puntos de fase de grupos (posiciones acertadas + bonus)"
             thirds:
               type: integer
               description: "Puntos por mejores terceros acertados"
             ko:
               type: integer
-              description: "Puntos acumulados en fase KO (avances + marcadores exactos)"
+              description: "Puntos acumulados en fase KO (avances + marcadores exactos + triple)"
             darkHorse:
               type: integer
               description: "Puntos acumulados por rondas avanzadas del caballo negro"
@@ -2201,7 +2204,7 @@ components:
           type: integer
           minimum: 0
           maximum: 3
-          description: "Usos de triple o nada disponibles. Solo relevante para el participante autenticado."
+          description: "Usos de triple o nada disponibles del participante consultado."
         prize:
           type: [integer, 'null']
           description: "Premio en COP si está en el podio. Null si no."

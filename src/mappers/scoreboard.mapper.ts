@@ -1,20 +1,22 @@
 export interface ScoreboardEntryDto {
   rank: number
   participant: { id: string; name: string }
-  totalPoints: number
-  exactKoScores: number
+  total: number
   prize: number | null
 }
 
 export interface ScoreBreakdownDto {
   participant: { id: string; name: string }
-  groups: number
-  thirds: number
-  ko: number
-  darkHorse: number
-  disappointment: number
   total: number
+  breakdown: {
+    groups: number
+    thirds: number
+    ko: number
+    darkHorse: number
+    disappointment: number
+  }
   tripleUsesRemaining: number
+  prize: number | null
 }
 
 const PRIZES: Record<number, number> = { 1: 700000, 2: 250000, 3: 50000 }
@@ -28,14 +30,12 @@ const DISAPPOINTMENT_PARAM_KEYS = ['pts_disappointment_per_round']
 export function toScoreboardEntryDto(
   rank: number,
   participant: { id: string; name: string },
-  totalPoints: number,
-  exactKoScores: number,
+  total: number,
 ): ScoreboardEntryDto {
   return {
     rank,
     participant,
-    totalPoints,
-    exactKoScores,
+    total,
     prize: PRIZES[rank] ?? null,
   }
 }
@@ -44,6 +44,7 @@ export function toScoreBreakdownDto(
   participant: { id: string; name: string },
   events: { paramKey: string; points: number }[],
   tripleUsesRemaining: number,
+  prize: number | null,
 ): ScoreBreakdownDto {
   const sum = (keys: string[]) =>
     events.filter((e) => keys.includes(e.paramKey)).reduce((acc, e) => acc + e.points, 0)
@@ -56,12 +57,9 @@ export function toScoreBreakdownDto(
 
   return {
     participant,
-    groups,
-    thirds,
-    ko,
-    darkHorse,
-    disappointment,
     total: groups + thirds + ko + darkHorse + disappointment,
+    breakdown: { groups, thirds, ko, darkHorse, disappointment },
     tripleUsesRemaining,
+    prize,
   }
 }

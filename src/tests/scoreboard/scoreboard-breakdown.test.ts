@@ -62,13 +62,14 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(res.statusCode).toBe(200)
     const body = res.json()
     expect(body.participant.id).toBe(participant.id)
-    expect(body.groups).toBe(0)
-    expect(body.thirds).toBe(0)
-    expect(body.ko).toBe(0)
-    expect(body.darkHorse).toBe(0)
-    expect(body.disappointment).toBe(0)
+    expect(body.breakdown.groups).toBe(0)
+    expect(body.breakdown.thirds).toBe(0)
+    expect(body.breakdown.ko).toBe(0)
+    expect(body.breakdown.darkHorse).toBe(0)
+    expect(body.breakdown.disappointment).toBe(0)
     expect(body.total).toBe(0)
     expect(body.tripleUsesRemaining).toBe(3)
+    expect(body.prize).toBe(700000) // only participant → rank 1
   })
 
   it('aggregates score events by category correctly', async () => {
@@ -96,13 +97,14 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
 
     expect(res.statusCode).toBe(200)
     const body = res.json()
-    expect(body.groups).toBe(17)       // 12 + 5
-    expect(body.thirds).toBe(8)
-    expect(body.ko).toBe(28)           // 10 + 15 + 3
-    expect(body.darkHorse).toBe(7)
-    expect(body.disappointment).toBe(-4)
-    expect(body.total).toBe(56)        // 17 + 8 + 28 + 7 + (-4)
+    expect(body.breakdown.groups).toBe(17)       // 12 + 5
+    expect(body.breakdown.thirds).toBe(8)
+    expect(body.breakdown.ko).toBe(28)           // 10 + 15 + 3
+    expect(body.breakdown.darkHorse).toBe(7)
+    expect(body.breakdown.disappointment).toBe(-4)
+    expect(body.total).toBe(56)                  // 17 + 8 + 28 + 7 + (-4)
     expect(body.tripleUsesRemaining).toBe(3)
+    expect(body.prize).toBe(700000)              // only participant → rank 1
   })
 
   it('tripleUsesRemaining decreases with active triples', async () => {
@@ -142,7 +144,9 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     })
 
     expect(res.statusCode).toBe(200)
-    expect(res.json().participant.id).toBe(other.id)
+    const body = res.json()
+    expect(body.participant.id).toBe(other.id)
+    expect(body.prize).toBeDefined()
   })
 
   // ── scoring pipeline ────────────────────────────────────────────────────
@@ -179,9 +183,9 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
 
     expect(res.statusCode).toBe(200)
     const body = res.json()
-    expect(body.groups).toBe(4 * 3 + 5) // 17
-    expect(body.thirds).toBe(0)
-    expect(body.ko).toBe(0)
+    expect(body.breakdown.groups).toBe(4 * 3 + 5) // 17
+    expect(body.breakdown.thirds).toBe(0)
+    expect(body.breakdown.ko).toBe(0)
     expect(body.total).toBe(17)
   })
 
@@ -215,7 +219,7 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     })
 
     const body = res.json()
-    expect(body.ko).toBe(4) // only pts_ko_advances * scale_r32(1)
+    expect(body.breakdown.ko).toBe(4) // only pts_ko_advances * scale_r32(1)
     expect(body.total).toBe(4)
   })
 
@@ -249,7 +253,7 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
 
     const body = res.json()
     // (4 + 6) * 1 = 10 scaled, + 3 triple bonus = 13
-    expect(body.ko).toBe(13)
+    expect(body.breakdown.ko).toBe(13)
   })
 
   it('KO triple active + wrong score → breakdown.ko = 0 (triple-or-nothing penalty)', async () => {
@@ -281,7 +285,7 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
       headers: { cookie },
     })
 
-    expect(res.json().ko).toBe(0)
+    expect(res.json().breakdown.ko).toBe(0)
   })
 
   it('dark horse wins → breakdown.darkHorse = pts_dark_horse_per_round', async () => {
@@ -313,8 +317,8 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     })
 
     const body = res.json()
-    expect(body.darkHorse).toBe(8)
-    expect(body.disappointment).toBe(0)
+    expect(body.breakdown.darkHorse).toBe(8)
+    expect(body.breakdown.disappointment).toBe(0)
     expect(body.total).toBe(8)
   })
 
@@ -347,8 +351,8 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     })
 
     const body = res.json()
-    expect(body.disappointment).toBe(-5)
-    expect(body.darkHorse).toBe(0)
+    expect(body.breakdown.disappointment).toBe(-5)
+    expect(body.breakdown.darkHorse).toBe(0)
     expect(body.total).toBe(-5)
   })
 })

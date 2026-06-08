@@ -113,6 +113,26 @@ Every endpoint must have at least:
 - Invalid data → 400 (if validation exists)
 - Locked state → 423 (if a lock applies)
 
+## Schema sync before running tests
+
+Before running tests (and before writing new tests that touch a new model), verify the Prisma client is in sync with the current schema:
+
+```bash
+# Check for pending migrations
+npx prisma migrate status
+
+# If any migrations are not applied to the test DB, apply them:
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/polla_test \
+  npx prisma migrate deploy
+
+# Regenerate the client after any schema change or new migration:
+npx prisma generate
+```
+
+**Why this matters:** If a migration exists but `npx prisma generate` has not been run, the Prisma client will not know about the new model/field. Tests that reference `prisma.<newModel>` (including `setup.ts` cleanup) will crash with a runtime error — not a type error — so the build may pass but the test run fails. This was observed with `matchReminder` after migration `20260608031335_add_match_reminder` was added without regenerating the client.
+
+**Rule:** Any time you add or modify a Prisma migration (new model, new field, renamed field), run `npx prisma generate` before running tests. If tests fail with `prisma.<model> is not a function` or similar, this is the first thing to check.
+
 ## Vitest config
 
 `fileParallelism: false` — tests run serially to avoid DB conflicts. Do not change.

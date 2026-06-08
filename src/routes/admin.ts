@@ -12,8 +12,6 @@ import {
 } from '../services/admin.service.js'
 
 export default async function adminRoutes(fastify: FastifyInstance) {
-  fastify.addHook('preHandler', fastify.authenticate)
-  fastify.addHook('preHandler', fastify.requireAdmin)
 
   fastify.post('/invitations', async (_request, reply) => {
     const inv = await createInvitation()
