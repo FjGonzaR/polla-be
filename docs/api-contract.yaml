@@ -322,7 +322,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example: { error: "Los grupos ya existen", code: "GROUPS_ALREADY_LOADED" }
+              example: { code: "GROUPS_ALREADY_LOADED", message: "Groups have already been loaded" }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -391,7 +391,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example: { error: "Ronda no encontrada", code: "ROUND_NOT_FOUND" }
+              example: { code: "ROUND_NOT_FOUND", message: "Round 'QF' not found" }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -573,6 +573,20 @@ paths:
                         id:   { type: string, format: uuid }
                         name: { type: string }
                         code: { type: string }
+        '400':
+          description: No se enviaron exactamente 8 IDs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { code: "INVALID_TOP8_COUNT", message: "Exactly 8 team IDs required" }
+        '404':
+          description: Uno o más IDs de equipo no existen
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { code: "TEAM_NOT_FOUND", message: "One or more team IDs not found" }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1638,6 +1652,10 @@ components:
       properties:
         label: { type: string, description: "Letra del grupo, ej: A" }
         name:  { type: string, description: "Nombre completo, ej: Grupo A" }
+        lastMatchAt:
+          type: [string, 'null']
+          format: date-time
+          description: "Fecha del último partido del grupo. Opcional."
         teams:
           type: array
           items:

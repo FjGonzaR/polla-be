@@ -1,10 +1,13 @@
 import type { FastifyInstance } from 'fastify'
-import { InvitationStatus } from '@prisma/client'
+import { InvitationStatus, type RoundSlug } from '@prisma/client'
 import { createInvitation, listInvitations } from '../services/invitation.service.js'
 import {
   setMatchResult,
   updateScoringParam,
   setQualifiedThirds,
+  loadGroups,
+  loadKoMatches,
+  setTop8Teams,
 } from '../services/admin.service.js'
 
 export default async function adminRoutes(fastify: FastifyInstance) {
@@ -52,5 +55,41 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const { value } = request.body as { value: number }
     const data = await updateScoringParam(key, value)
     return reply.code(200).send(data)
+  })
+
+  fastify.post('/groups', async (request, reply) => {
+    const { groups } = request.body as {
+      groups: {
+        label: string
+        name: string
+        lastMatchAt?: string | null
+        teams: { name: string; code: string; isTop8: boolean }[]
+      }[]
+    }
+    const result = await loadGroups(groups)
+    return reply.code(201).send({ ok: true, ...result })
+  })
+
+  fastify.post('/ko/matches', async (request, reply) => {
+    const { roundSlug, matches } = request.body as {
+      roundSlug: RoundSlug
+      matches: {
+        externalMatchId: string | number
+        matchNumber: number
+        homeTeamId?: string | null
+        awayTeamId?: string | null
+        homeTeamLabel?: string | null
+        awayTeamLabel?: string | null
+        scheduledAt: string
+      }[]
+    }
+    const result = await loadKoMatches(roundSlug, matches)
+    return reply.code(201).send({ ok: true, ...result })
+  })
+
+  fastify.put('/top8', async (request, reply) => {
+    const { teamIds } = request.body as { teamIds: string[] }
+    const result = await setTop8Teams(teamIds)
+    return reply.code(200).send(result)
   })
 }
