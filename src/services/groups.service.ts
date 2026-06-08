@@ -90,12 +90,16 @@ interface MyGroupPredictionsDto {
   completedGroups: number
 }
 
+type LedgerGroupEntry = { pts_group_position_exact: number; bonus_group_complete: number }
+type LedgerGroupMap = Map<string, LedgerGroupEntry>
+
 function computeGroupStatus(
   groups: (Group & { teams: Team[] })[],
   predictions: (GroupPrediction & { team: Team })[],
   allStandings: GroupStanding[],
   ptsExact: number,
   bonusComplete: number,
+  ledgerByGroup: LedgerGroupMap = new Map(),
 ): MyGroupPredictionsDto {
   const data: GroupPredictionStatus[] = groups.map((group) => {
     const groupPreds = predictions
@@ -113,14 +117,23 @@ function computeGroupStatus(
 
     let pointsEarned: PointsEarned | null = null
     if (groupComplete) {
-      const standings = allStandings.filter((s) => s.groupId === group.id)
-      if (standings.length === 4 && standings.every((s) => s.realPosition !== null)) {
-        const exactCount = rankings.filter(
-          (r) => standings.find((s) => s.teamId === r.teamId)?.realPosition === r.predictedPosition,
-        ).length
-        const pts = exactCount * ptsExact
-        const bonus = exactCount === 4 ? bonusComplete : 0
-        pointsEarned = { pts_group_position_exact: pts, bonus_group_complete: bonus, total: pts + bonus }
+      const ledger = ledgerByGroup.get(group.id)
+      if (ledger) {
+        pointsEarned = {
+          pts_group_position_exact: ledger.pts_group_position_exact,
+          bonus_group_complete: ledger.bonus_group_complete,
+          total: ledger.pts_group_position_exact + ledger.bonus_group_complete,
+        }
+      } else {
+        const standings = allStandings.filter((s) => s.groupId === group.id)
+        if (standings.length === 4 && standings.every((s) => s.realPosition !== null)) {
+          const exactCount = rankings.filter(
+            (r) => standings.find((s) => s.teamId === r.teamId)?.realPosition === r.predictedPosition,
+          ).length
+          const pts = exactCount * ptsExact
+          const bonus = exactCount === 4 ? bonusComplete : 0
+          pointsEarned = { pts_group_position_exact: pts, bonus_group_complete: bonus, total: pts + bonus }
+        }
       }
     }
 
@@ -130,6 +143,20 @@ function computeGroupStatus(
   return { data, completedGroups: data.filter((g) => g.groupComplete).length }
 }
 
+function buildLedgerGroupMap(
+  events: { paramKey: string; points: number; groupId: string | null }[],
+): LedgerGroupMap {
+  const map: LedgerGroupMap = new Map()
+  for (const e of events) {
+    if (!e.groupId) continue
+    const curr = map.get(e.groupId) ?? { pts_group_position_exact: 0, bonus_group_complete: 0 }
+    if (e.paramKey === 'pts_group_position_exact') curr.pts_group_position_exact += e.points
+    if (e.paramKey === 'bonus_group_complete') curr.bonus_group_complete += e.points
+    map.set(e.groupId, curr)
+  }
+  return map
+}
+
 export async function findMyGroupPredictions(participantId: string): Promise<MyGroupPredictionsDto> {
   const [groups, predictions, allStandings] = await Promise.all([
     prisma.group.findMany({ include: { teams: true }, orderBy: { label: 'asc' } }),
@@ -137,12 +164,23 @@ export async function findMyGroupPredictions(participantId: string): Promise<MyG
     prisma.groupStanding.findMany(),
   ])
 
+  const groupIds = groups.map((g) => g.id)
+  const ledgerEvents = await prisma.scoreEvent.findMany({
+    where: {
+      participantId,
+      groupId: { in: groupIds },
+      paramKey: { in: ['pts_group_position_exact', 'bonus_group_complete'] },
+    },
+    select: { paramKey: true, points: true, groupId: true },
+  })
+  const ledgerByGroup = buildLedgerGroupMap(ledgerEvents)
+
   const hasAnyComplete = groups.some((g) => predictions.filter((p) => p.groupId === g.id).length === 4)
   const [ptsExact, bonusComplete] = hasAnyComplete
     ? await Promise.all([getParam('pts_group_position_exact'), getParam('bonus_group_complete')])
     : [0, 0]
 
-  return computeGroupStatus(groups, predictions, allStandings, ptsExact, bonusComplete)
+  return computeGroupStatus(groups, predictions, allStandings, ptsExact, bonusComplete, ledgerByGroup)
 }
 
 interface FriendPrediction {
@@ -166,20 +204,47 @@ export async function findFriendsGroupPredictions(
   const others = await prisma.participant.findMany({ where: { id: { not: participantId } } })
   const otherIds = others.map((p) => p.id)
 
-  const [groups, allStandings, allPredictions, ptsExact, bonusComplete] = await Promise.all([
-    prisma.group.findMany({ include: { teams: true }, orderBy: { label: 'asc' } }),
-    prisma.groupStanding.findMany(),
-    prisma.groupPrediction.findMany({
-      where: { participantId: { in: otherIds } },
-      include: { team: true },
-    }),
-    getParam('pts_group_position_exact'),
-    getParam('bonus_group_complete'),
-  ])
+  const [groups, allStandings, allPredictions, allLedgerEvents, ptsExact, bonusComplete] =
+    await Promise.all([
+      prisma.group.findMany({ include: { teams: true }, orderBy: { label: 'asc' } }),
+      prisma.groupStanding.findMany(),
+      prisma.groupPrediction.findMany({
+        where: { participantId: { in: otherIds } },
+        include: { team: true },
+      }),
+      prisma.scoreEvent.findMany({
+        where: {
+          participantId: { in: otherIds },
+          paramKey: { in: ['pts_group_position_exact', 'bonus_group_complete'] },
+        },
+        select: { participantId: true, paramKey: true, points: true, groupId: true },
+      }),
+      getParam('pts_group_position_exact'),
+      getParam('bonus_group_complete'),
+    ])
+
+  // Map participantId → LedgerGroupMap
+  const participantLedger = new Map<string, LedgerGroupMap>()
+  for (const e of allLedgerEvents) {
+    if (!participantLedger.has(e.participantId)) participantLedger.set(e.participantId, new Map())
+    const gMap = participantLedger.get(e.participantId)!
+    const curr = gMap.get(e.groupId ?? '') ?? { pts_group_position_exact: 0, bonus_group_complete: 0 }
+    if (e.paramKey === 'pts_group_position_exact') curr.pts_group_position_exact += e.points
+    if (e.paramKey === 'bonus_group_complete') curr.bonus_group_complete += e.points
+    if (e.groupId) gMap.set(e.groupId, curr)
+  }
 
   const data: FriendPrediction[] = others.map((p) => {
     const predictions = allPredictions.filter((pred) => pred.participantId === p.id)
-    const { data: groupData } = computeGroupStatus(groups, predictions, allStandings, ptsExact, bonusComplete)
+    const ledgerByGroup = participantLedger.get(p.id) ?? new Map()
+    const { data: groupData } = computeGroupStatus(
+      groups,
+      predictions,
+      allStandings,
+      ptsExact,
+      bonusComplete,
+      ledgerByGroup,
+    )
     const totalGroupPoints = groupData.reduce((sum, g) => sum + (g.pointsEarned?.total ?? 0), 0)
     return { participant: { id: p.id, name: p.name }, predictions: groupData, totalGroupPoints }
   })

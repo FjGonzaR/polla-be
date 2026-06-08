@@ -310,6 +310,36 @@ export async function persistPowerupKoMatchEvents(matchId: string): Promise<void
   ])
 }
 
+export async function persistThirdScoreEvents(): Promise<void> {
+  const [ptsThird, qualifiedStandings, participants] = await Promise.all([
+    getParam('pts_third_correct'),
+    prisma.groupStanding.findMany({ where: { qualifiedAsThird: true }, select: { teamId: true } }),
+    prisma.participant.findMany({ select: { id: true } }),
+  ])
+
+  const qualifiedTeamIds = new Set(qualifiedStandings.map((s) => s.teamId))
+  if (qualifiedTeamIds.size === 0) return
+
+  const allThirdPredictions = await prisma.thirdPrediction.findMany({
+    where: { participantId: { in: participants.map((p) => p.id) } },
+  })
+
+  const events: ScoreEventInput[] = []
+  for (const { id: participantId } of participants) {
+    const preds = allThirdPredictions.filter((p) => p.participantId === participantId)
+    for (const pred of preds) {
+      if (qualifiedTeamIds.has(pred.teamId)) {
+        events.push({ participantId, paramKey: 'pts_third_correct', matchId: null, groupId: null, roundSlug: null, points: ptsThird })
+      }
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.scoreEvent.deleteMany({ where: { paramKey: 'pts_third_correct' } }),
+    prisma.scoreEvent.createMany({ data: events }),
+  ])
+}
+
 export async function recalculateParticipantScores(participantId: string): Promise<number> {
   const [groupEvents, thirdEvents, koEvents, powerupEvents] = await Promise.all([
     buildGroupEvents(participantId),

@@ -29,16 +29,38 @@ type MatchWithTeamsAndPredictions = Match & {
   koPredictions: KoPrediction[]
 }
 
+type LedgerEvent = { paramKey: string; points: number }
+
 async function buildPointsEarned(
   prediction: KoPrediction,
   match: Match,
   roundSlug: RoundSlug,
+  ledgerEvents?: LedgerEvent[],
 ): Promise<KoPointsEarnedDto | null> {
   if (match.scoreHome == null || match.scoreAway == null || match.winnerTeamId == null) return null
 
   const scaleSlug = SCALE_SLUG_MAP[roundSlug]
   if (!scaleSlug) return null
 
+  // Prefer ledger when events exist for this prediction
+  if (ledgerEvents && ledgerEvents.length > 0) {
+    const sum = (key: string) =>
+      ledgerEvents.filter((e) => e.paramKey === key).reduce((acc, e) => acc + e.points, 0)
+    const ptsAdvances = sum('pts_ko_advances')
+    const ptsExact = sum('pts_ko_exact_score')
+    const tripleBonus = sum('mult_triple')
+    const scaleFactor = await getParam(scaleSlug)
+    return {
+      pts_ko_advances: ptsAdvances,
+      pts_ko_exact_score: ptsExact,
+      mult_triple: tripleBonus,
+      scale_factor: scaleFactor,
+      scale_slug: scaleSlug,
+      total: ptsAdvances + ptsExact + tripleBonus,
+    }
+  }
+
+  // Inline fallback
   const [ptsAdvances, ptsExact, multTriple, scaleFactor] = await Promise.all([
     getParam('pts_ko_advances'),
     getParam('pts_ko_exact_score'),
@@ -82,9 +104,13 @@ async function buildMatchDto(
   match: MatchWithTeamsAndPredictions,
   roundSlug: RoundSlug,
   participantId: string,
+  ledgerByMatch: Map<string, LedgerEvent[]> = new Map(),
 ): Promise<KoMatchDto> {
   const prediction = match.koPredictions.find((p) => p.participantId === participantId) ?? null
-  const pointsEarned = prediction ? await buildPointsEarned(prediction, match, roundSlug) : null
+  const ledgerEvents = ledgerByMatch.get(match.id)
+  const pointsEarned = prediction
+    ? await buildPointsEarned(prediction, match, roundSlug, ledgerEvents)
+    : null
   return toKoMatchDto(match, prediction, pointsEarned)
 }
 
@@ -114,8 +140,25 @@ export async function findKoMatches(
 
   if (!round) throw new AppError(404, 'ROUND_NOT_FOUND', 'Round not found')
 
+  const matchIds = round.matches.map((m) => m.id)
+  const rawLedgerEvents = await prisma.scoreEvent.findMany({
+    where: {
+      participantId,
+      matchId: { in: matchIds },
+      paramKey: { in: ['pts_ko_advances', 'pts_ko_exact_score', 'mult_triple'] },
+    },
+    select: { matchId: true, paramKey: true, points: true },
+  })
+
+  const ledgerByMatch = new Map<string, LedgerEvent[]>()
+  for (const e of rawLedgerEvents) {
+    if (!e.matchId) continue
+    if (!ledgerByMatch.has(e.matchId)) ledgerByMatch.set(e.matchId, [])
+    ledgerByMatch.get(e.matchId)!.push({ paramKey: e.paramKey, points: e.points })
+  }
+
   const matches = await Promise.all(
-    round.matches.map((match) => buildMatchDto(match, slug, participantId)),
+    round.matches.map((match) => buildMatchDto(match, slug, participantId, ledgerByMatch)),
   )
 
   return { round: toKoRoundDto(round), matches }
@@ -266,8 +309,22 @@ export async function findKoMatch(matchId: string, participantId: string): Promi
   if (!match) throw new AppError(404, 'MATCH_NOT_FOUND', 'Match not found')
 
   const prediction = match.koPredictions[0] ?? null
+
+  let ledgerEvents: LedgerEvent[] | undefined
+  if (prediction && match.scoreHome != null) {
+    const events = await prisma.scoreEvent.findMany({
+      where: {
+        participantId,
+        matchId,
+        paramKey: { in: ['pts_ko_advances', 'pts_ko_exact_score', 'mult_triple'] },
+      },
+      select: { paramKey: true, points: true },
+    })
+    if (events.length > 0) ledgerEvents = events
+  }
+
   const pointsEarned = prediction
-    ? await buildPointsEarned(prediction, match, match.round.slug)
+    ? await buildPointsEarned(prediction, match, match.round.slug, ledgerEvents)
     : null
 
   return toKoMatchDto(match, prediction, pointsEarned)

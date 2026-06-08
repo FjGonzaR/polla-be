@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { buildServer } from '../../server.js'
 import { prisma } from '../../lib/prisma.js'
 import { createAuthenticatedParticipant, createAuthenticatedAdmin } from '../helpers/auth.helper.js'
+import { seedScoringParams } from '../helpers/scoring.helper.js'
 
 async function buildMatchWithTeams() {
   const round = await prisma.round.create({
@@ -24,6 +25,7 @@ async function buildMatchWithTeams() {
 
 describe('PUT /admin/ko/matches/:matchId/result', () => {
   it('sets result, marks FINISHED, triggers score recalculation → 200', async () => {
+    await seedScoringParams()
     const { cookie } = await createAuthenticatedAdmin()
     const { match, home } = await buildMatchWithTeams()
 

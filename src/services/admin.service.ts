@@ -1,33 +1,11 @@
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
-import { persistKoMatchScoreEvents, persistPowerupKoMatchEvents } from './score-calculation.service.js'
-import { toInvitationDto, toScoringParamDto, type InvitationDto, type ScoringParamDto } from '../mappers/admin.mapper.js'
-
-export async function createInvitations(count: number): Promise<InvitationDto[]> {
-  if (count < 1) throw new AppError(400, 'INVALID_COUNT', 'count must be at least 1')
-
-  const codes = Array.from({ length: count }, () =>
-    crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase(),
-  )
-
-  await prisma.invitation.createMany({ data: codes.map((code) => ({ code })) })
-
-  const created = await prisma.invitation.findMany({
-    where: { code: { in: codes } },
-    include: { participant: { select: { id: true, name: true } } },
-    orderBy: { createdAt: 'desc' },
-  })
-
-  return created.map(toInvitationDto)
-}
-
-export async function listInvitations(): Promise<InvitationDto[]> {
-  const invitations = await prisma.invitation.findMany({
-    include: { participant: { select: { id: true, name: true } } },
-    orderBy: { createdAt: 'desc' },
-  })
-  return invitations.map(toInvitationDto)
-}
+import {
+  persistKoMatchScoreEvents,
+  persistPowerupKoMatchEvents,
+  persistThirdScoreEvents,
+} from './score-calculation.service.js'
+import { toScoringParamDto, type ScoringParamDto } from '../mappers/admin.mapper.js'
 
 interface MatchResultInput {
   scoreHome: number
@@ -55,6 +33,36 @@ export async function setMatchResult(matchId: string, body: MatchResultInput): P
 
   await persistKoMatchScoreEvents(matchId)
   await persistPowerupKoMatchEvents(matchId)
+}
+
+export async function setQualifiedThirds(teamIds: string[]): Promise<void> {
+  if (teamIds.length !== 8) {
+    throw new AppError(400, 'INVALID_THIRDS_COUNT', 'Exactly 8 team IDs required')
+  }
+
+  const standings = await prisma.groupStanding.findMany({
+    where: { realPosition: 3 },
+    select: { teamId: true },
+  })
+  const allThirdTeamIds = new Set(standings.map((s) => s.teamId))
+
+  for (const teamId of teamIds) {
+    if (!allThirdTeamIds.has(teamId)) {
+      throw new AppError(400, 'INVALID_THIRD_TEAM', `Team ${teamId} is not a third-place team`)
+    }
+  }
+
+  const qualifiedSet = new Set(teamIds)
+  await prisma.$transaction(
+    standings.map((s) =>
+      prisma.groupStanding.update({
+        where: { teamId: s.teamId },
+        data: { qualifiedAsThird: qualifiedSet.has(s.teamId) },
+      }),
+    ),
+  )
+
+  await persistThirdScoreEvents()
 }
 
 export async function updateScoringParam(key: string, value: number): Promise<ScoringParamDto> {
