@@ -33,11 +33,6 @@ export default async function powerupsRoutes(fastify: FastifyInstance) {
         darkHorseTeamId?: string
         disappointmentTeamId?: string
       }
-      if (!darkHorseTeamId || !disappointmentTeamId) {
-        return reply
-          .code(400)
-          .send({ code: 'MISSING_FIELDS', message: 'darkHorseTeamId and disappointmentTeamId are required' })
-      }
       const result = await updatePowerups(request.user.id, darkHorseTeamId, disappointmentTeamId)
       return reply.code(200).send(result)
     },

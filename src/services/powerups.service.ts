@@ -13,16 +13,16 @@ const INCLUDE_TEAMS = {
   disappointmentTeam: true,
 } as const
 
-async function validateTeams(darkHorseTeamId: string, disappointmentTeamId: string) {
+async function validateTeams(darkHorseTeamId?: string, disappointmentTeamId?: string) {
   const [darkHorse, disappointment] = await Promise.all([
-    prisma.team.findUnique({ where: { id: darkHorseTeamId } }),
-    prisma.team.findUnique({ where: { id: disappointmentTeamId } }),
+    darkHorseTeamId ? prisma.team.findUnique({ where: { id: darkHorseTeamId } }) : Promise.resolve(null),
+    disappointmentTeamId ? prisma.team.findUnique({ where: { id: disappointmentTeamId } }) : Promise.resolve(null),
   ])
 
-  if (!darkHorse || darkHorse.isTop8) {
+  if (darkHorseTeamId && (!darkHorse || darkHorse.isTop8)) {
     throw new AppError(400, 'INVALID_DARK_HORSE', 'Dark horse must be a non-top-8 team')
   }
-  if (!disappointment || !disappointment.isTop8) {
+  if (disappointmentTeamId && (!disappointment || !disappointment.isTop8)) {
     throw new AppError(400, 'INVALID_DISAPPOINTMENT', 'Disappointment must be a top-8 team')
   }
 }
@@ -53,11 +53,15 @@ export async function createPowerups(
 
 export async function updatePowerups(
   participantId: string,
-  darkHorseTeamId: string,
-  disappointmentTeamId: string,
+  darkHorseTeamId?: string,
+  disappointmentTeamId?: string,
 ): Promise<MyPowerupsDto> {
   if (await isGroupPhaseLocked()) {
     throw new AppError(423, 'PREDICTIONS_LOCKED', 'Predictions are locked')
+  }
+
+  if (!darkHorseTeamId && !disappointmentTeamId) {
+    throw new AppError(400, 'MISSING_FIELDS', 'At least one of darkHorseTeamId or disappointmentTeamId is required')
   }
 
   await validateTeams(darkHorseTeamId, disappointmentTeamId)
@@ -67,9 +71,13 @@ export async function updatePowerups(
     throw new AppError(404, 'POWERUPS_NOT_FOUND', 'Powerups not found, use POST to create')
   }
 
+  const data: { darkHorseTeamId?: string; disappointmentTeamId?: string } = {}
+  if (darkHorseTeamId) data.darkHorseTeamId = darkHorseTeamId
+  if (disappointmentTeamId) data.disappointmentTeamId = disappointmentTeamId
+
   const powerup = await prisma.powerup.update({
     where: { participantId },
-    data: { darkHorseTeamId, disappointmentTeamId },
+    data,
     include: INCLUDE_TEAMS,
   })
 

@@ -83,6 +83,60 @@ describe('PUT /powerups/predictions', () => {
     expect(res.json().code).toBe('INVALID_DARK_HORSE')
   })
 
+  it('only darkHorseTeamId → 200 + updates only dark horse', async () => {
+    const server = await buildServer()
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const existing = await new PowerupBuilder().build(participant.id)
+    const newDarkHorse = await new TeamBuilder().withIsTop8(false).build()
+
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/powerups/predictions',
+      headers: { cookie },
+      payload: { darkHorseTeamId: newDarkHorse.id },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const row = await prisma.powerup.findUnique({ where: { participantId: participant.id } })
+    expect(row!.darkHorseTeamId).toBe(newDarkHorse.id)
+    expect(row!.disappointmentTeamId).toBe(existing.disappointmentTeamId)
+  })
+
+  it('only disappointmentTeamId → 200 + updates only disappointment', async () => {
+    const server = await buildServer()
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const existing = await new PowerupBuilder().build(participant.id)
+    const newDisappointment = await new TeamBuilder().withIsTop8(true).build()
+
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/powerups/predictions',
+      headers: { cookie },
+      payload: { disappointmentTeamId: newDisappointment.id },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const row = await prisma.powerup.findUnique({ where: { participantId: participant.id } })
+    expect(row!.disappointmentTeamId).toBe(newDisappointment.id)
+    expect(row!.darkHorseTeamId).toBe(existing.darkHorseTeamId)
+  })
+
+  it('no fields → 400 MISSING_FIELDS', async () => {
+    const server = await buildServer()
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    await new PowerupBuilder().build(participant.id)
+
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/powerups/predictions',
+      headers: { cookie },
+      payload: {},
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().code).toBe('MISSING_FIELDS')
+  })
+
   it('group phase locked → 423 PREDICTIONS_LOCKED', async () => {
     const server = await buildServer()
     const { participant, cookie } = await createAuthenticatedParticipant()
