@@ -33,8 +33,11 @@ npm run test:coverage       # coverage report
 
 # One-time test DB setup
 createdb polla_test
-TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/polla_test \
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/polla_test \
   npx prisma migrate deploy
+
+# IMPORTANT: after any schema change or new migration, regenerate the client:
+npx prisma generate         # must run before npm test or tests crash at runtime
 ```
 
 Run specific test file:
