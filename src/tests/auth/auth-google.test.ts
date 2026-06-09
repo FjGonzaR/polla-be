@@ -4,18 +4,30 @@ import { buildServer } from '../../server.js'
 import { buildInvitation } from '../builders/invitation.builder.js'
 import { buildParticipant } from '../builders/participant.builder.js'
 
-const { mockVerifyGoogleToken } = vi.hoisted(() => ({
+const { mockVerifyGoogleToken, mockSendWhatsappMessage } = vi.hoisted(() => ({
   mockVerifyGoogleToken: vi.fn(),
+  mockSendWhatsappMessage: vi.fn().mockResolvedValue(undefined),
 }))
 
 vi.mock('../../lib/google-auth.js', () => ({
   verifyGoogleToken: mockVerifyGoogleToken,
 }))
 
+vi.mock('../../lib/whatsapp.client.js', () => ({
+  sendWhatsappMessage: mockSendWhatsappMessage,
+  getWhatsappStatus: vi.fn().mockReturnValue({ connected: false, qrPending: false }),
+  getLastQr: vi.fn().mockReturnValue(null),
+  waitUntilConnected: vi.fn().mockResolvedValue(undefined),
+}))
+
 describe('POST /auth/google', () => {
   const ADMIN_PHONE = '+573023595622'
 
-  beforeEach(() => mockVerifyGoogleToken.mockReset())
+  beforeEach(() => {
+    mockVerifyGoogleToken.mockReset()
+    mockSendWhatsappMessage.mockReset()
+    mockSendWhatsappMessage.mockResolvedValue(undefined)
+  })
 
   it('signup: new user with valid code and phone → 200, cookie set, participant created', async () => {
     const invitation = await buildInvitation({ code: 'SIGNUP1' })
@@ -48,7 +60,30 @@ describe('POST /auth/google', () => {
     expect(inv!.status).toBe('USED')
   })
 
-  it('login: existing user → 200, cookie set, no duplicate participant', async () => {
+  it('signup: sends WhatsApp welcome message to participant phone', async () => {
+    await buildInvitation({ code: 'WELC01' })
+    mockVerifyGoogleToken.mockResolvedValue({
+      sub: 'google-welcome-uid',
+      email: 'welcome@test.com',
+      name: 'Welcome User',
+    })
+
+    const server = await buildServer()
+    await server.inject({
+      method: 'POST',
+      url: '/auth/google',
+      headers: { 'content-type': 'application/json' },
+      payload: { credential: 'valid-token', code: 'WELC01', phone: '+573009876543' },
+    })
+
+    await vi.waitFor(() => expect(mockSendWhatsappMessage).toHaveBeenCalledOnce())
+    const [sentPhone, sentMsg] = mockSendWhatsappMessage.mock.calls[0]
+    expect(sentPhone).toBe('+573009876543')
+    expect(sentMsg).toContain('PaulPredice')
+    expect(sentMsg).toContain('paulpredice.com')
+  })
+
+  it('login: existing user → 200, cookie set, no duplicate participant, no WhatsApp', async () => {
     const participant = await buildParticipant({ googleId: 'google-existing' })
     mockVerifyGoogleToken.mockResolvedValue({
       sub: 'google-existing',
@@ -69,6 +104,7 @@ describe('POST /auth/google', () => {
 
     const count = await prisma.participant.count({ where: { googleId: 'google-existing' } })
     expect(count).toBe(1)
+    expect(mockSendWhatsappMessage).not.toHaveBeenCalled()
   })
 
   it('new user without code/phone → 403 NEEDS_SIGNUP', async () => {
