@@ -28,6 +28,7 @@ async function initWhatsApp(): Promise<void> {
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       lastQr = qr
+      console.info('[whatsapp-client] QR generated — waiting for scan')
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('qrcode-terminal').generate(qr, { small: true })
     }
@@ -35,13 +36,18 @@ async function initWhatsApp(): Promise<void> {
       isConnected = true
       lastQr = null
       console.info('[whatsapp-client] Connected')
+    } else if (connection === 'connecting') {
+      console.info('[whatsapp-client] Connecting...')
     } else if (connection === 'close') {
       isConnected = false
-      const statusCode = (lastDisconnect?.error as InstanceType<typeof Boom>)?.output?.statusCode
+      const boom = lastDisconnect?.error as InstanceType<typeof Boom>
+      const statusCode = boom?.output?.statusCode
+      const message = boom?.message ?? 'unknown'
+      console.warn(`[whatsapp-client] Connection closed — statusCode=${statusCode} message="${message}"`)
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut
 
       if (shouldReconnect) {
-        console.warn('[whatsapp-client] Connection closed, reconnecting...')
+        console.warn('[whatsapp-client] Reconnecting...')
         initWhatsApp().catch((err: Error) =>
           console.error('[whatsapp-client] Reconnect failed:', err.message),
         )
