@@ -14,8 +14,9 @@ import {
 export default async function adminRoutes(fastify: FastifyInstance) {
   const adminGuard = { preHandler: [fastify.authenticate, fastify.requireAdmin] }
 
-  fastify.post('/invitations', adminGuard, async (_request, reply) => {
-    const inv = await createInvitation()
+  fastify.post('/invitations', adminGuard, async (request, reply) => {
+    const { phone } = (request.body as { phone?: string }) ?? {}
+    const inv = await createInvitation(phone)
     return reply.code(201).send(inv)
   })
 

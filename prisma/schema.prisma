@@ -37,6 +37,7 @@ enum RoundSlug {
 model Invitation {
   id          String           @id @default(uuid())
   code        String           @unique
+  phone       String?
   status      InvitationStatus @default(AVAILABLE)
   usedAt      DateTime?        @map("used_at")
   expiresAt   DateTime?        @map("expires_at")
