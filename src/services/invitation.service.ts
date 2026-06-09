@@ -25,12 +25,13 @@ export async function createInvitation(phone?: string): Promise<InvitationDto> {
   });
 
   if (phone) {
-    const appUrl = process.env.APP_URL ?? "https://paulpredice.com";
+    const appUrl = process.env.APP_URL ?? "https://app.paulpredice.com";
+    const loginUrl = `${appUrl}/login?code=${code}&phone=${encodeURIComponent(phone)}`;
     const msg =
       `🐙 *¡Hola! Soy Paul, el pulpo oráculo de PaulPredice.* 🔮\n\n` +
       `Mis tentáculos me dicen que sabes de fútbol, por eso te han invitado a mi Polla del Mundial 2026 🏆\n\n` +
       `🔑 Tu código de acceso: *${code}*\n` +
-      `👉 Regístrate conmigo aquí: ${appUrl}\n\n` +
+      `👉 Regístrate conmigo aquí:\n${loginUrl}\n\n` +
       `⏳ ¡No me dejes plantado! Tienes solo 24 horas para activar este código antes de que expire. ¡Ven a demostrar tu instinto!`;
     sendWhatsappMessage(phone, msg).catch((err: Error) =>
       console.warn("[invitation] WhatsApp send failed:", err.message),

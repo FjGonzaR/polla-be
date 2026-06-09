@@ -102,7 +102,7 @@ export async function loginOrSignup(
     const appUrl = process.env.APP_URL ?? "https://app.paulpredice.com";
     const welcomeMsg =
       `🐙 ¡Ya eres parte de PaulPredice! 🏆\n\n` +
-      `Tu registro en ${appUrl} ha sido un éxito. Para empezar con el pie derecho, ten en cuenta:\n\n` +
+      `Tu registro ha sido un éxito. Entra aquí para empezar:\n${appUrl}\n\n` +
       `🗓️ *Fecha límite:* 11 de junio (Primer partido del Mundial).\n` +
       `🔒 *Qué se cierra:* Predicciones de grupos, terceros y la configuración de tus poderes.\n\n` +
       `No lo dejes para el final. ¡Pon a prueba tu instinto y buena suerte en la Polla! ⚽`;
