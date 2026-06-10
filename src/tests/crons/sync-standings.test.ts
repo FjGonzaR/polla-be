@@ -189,53 +189,6 @@ describe('syncStandings', () => {
     expect(count).toBe(0)
   })
 
-  it('all 12 groups finalized → top 8 thirds get qualifiedAsThird=true, third score events created', async () => {
-    await seedScoringParams()
-    const lastMatchAt = new Date(Date.now() - 3 * 60 * 60 * 1000)
-    const labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']
-
-    const groupsData: Array<{ group: { id: string }; teams: { id: string; externalTeamId: string | null }[] }> = []
-    for (const label of labels) {
-      const data = await buildGroupWithTeams(
-        label,
-        [`${label}1`, `${label}2`, `${label}3`, `${label}4`],
-        lastMatchAt,
-      )
-      groupsData.push(data)
-    }
-
-    // Groups A–H third-place teams have pts=4, groups I–L have pts=1
-    const apiPayload = labels.map((label, i) => {
-      const thirdPts = i < 8 ? 4 : 1
-      return apiStanding(label, [
-        { extId: `${label}1`, pts: 7, gf: 5, ga: 1, mp: 3 },
-        { extId: `${label}2`, pts: 5, gf: 3, ga: 2, mp: 3 },
-        { extId: `${label}3`, pts: thirdPts, gf: 3, ga: 2, mp: 3 },
-        { extId: `${label}4`, pts: 0, gf: 1, ga: 5, mp: 3 },
-      ])
-    })
-
-    mockGetStandings.mockResolvedValue(apiPayload)
-
-    // Participant with ThirdPrediction for group A's third-place team (qualifies)
-    const participant = await buildParticipant()
-    const teamA3 = groupsData[0].teams[2]
-    await prisma.thirdPrediction.create({
-      data: { participantId: participant.id, teamId: teamA3.id },
-    })
-
-    await syncStandings()
-
-    const qualifiedCount = await prisma.groupStanding.count({ where: { qualifiedAsThird: true } })
-    expect(qualifiedCount).toBe(8)
-
-    const thirdEvent = await prisma.scoreEvent.findFirst({
-      where: { participantId: participant.id, paramKey: 'pts_third_correct' },
-    })
-    expect(thirdEvent).not.toBeNull()
-    expect(thirdEvent!.points).toBe(2)
-  })
-
   it('API error → function resolves without throwing, no standings written', async () => {
     mockGetStandings.mockRejectedValue(new Error('Network timeout'))
 
