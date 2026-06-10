@@ -18,7 +18,11 @@ describe('recalculateScores', () => {
 
   it('correct group predictions + finalized standings → creates pts_group_position_exact events', async () => {
     await seedScoringParams()
-    const group = await new GroupBuilder().withLabel('A').withName('Group A').build()
+    const group = await new GroupBuilder()
+      .withLabel('A')
+      .withName('Group A')
+      .withLastMatchAt(new Date(Date.now() - 3 * 60 * 60 * 1000)) // 3h ago → isGroupFinalized passes
+      .build()
     const [t1, t2, t3, t4] = await Promise.all([
       new TeamBuilder().withName('T1').withCode('T1C').withGroupId(group.id).build(),
       new TeamBuilder().withName('T2').withCode('T2C').withGroupId(group.id).build(),

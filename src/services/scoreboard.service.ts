@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
+import { getParam } from './scoring.service.js'
 import {
   toScoreboardEntryDto,
   toScoreBreakdownDto,
@@ -14,8 +15,67 @@ export async function getScoreboard(viewerParticipantId: string): Promise<{ upda
     prisma.scoreEvent.groupBy({ by: ['participantId'], where: { paramKey: 'pts_ko_exact_score' }, _count: { id: true } }),
   ])
 
-  const pointsMap = new Map(scoreGroups.map((g) => [g.participantId, g._sum.points ?? 0]))
+  const persistedPointsMap = new Map(scoreGroups.map((g) => [g.participantId, Number(g._sum.points ?? 0)]))
   const exactKoMap = new Map(exactKoGroups.map((e) => [e.participantId, e._count.id]))
+
+  // Provisional group points for groups not yet finalized in score_event
+  const provisionalPointsMap = new Map<string, number>()
+  const [allGroupStandings, finalizedGroupEvents] = await Promise.all([
+    prisma.groupStanding.findMany({ where: { realPosition: { not: null } } }),
+    prisma.scoreEvent.findMany({
+      where: { paramKey: 'pts_group_position_exact', groupId: { not: null } },
+      select: { groupId: true },
+      distinct: ['groupId'],
+    }),
+  ])
+
+  const finalizedGroupIds = new Set(finalizedGroupEvents.map((e) => e.groupId))
+  const standingsByGroup = new Map<string, typeof allGroupStandings>()
+  for (const s of allGroupStandings) {
+    const arr = standingsByGroup.get(s.groupId) ?? []
+    arr.push(s)
+    standingsByGroup.set(s.groupId, arr)
+  }
+
+  const provisionalGroupIds = [...standingsByGroup.entries()]
+    .filter(
+      ([gId, stds]) =>
+        !finalizedGroupIds.has(gId) &&
+        stds.length === 4 &&
+        stds.every((s) => s.realPosition !== null) &&
+        stds.some((s) => s.matchesPlayed > 0),
+    )
+    .map(([gId]) => gId)
+
+  if (provisionalGroupIds.length > 0) {
+    const [ptsExact, bonusComplete, allGroupPredictions] = await Promise.all([
+      getParam('pts_group_position_exact'),
+      getParam('bonus_group_complete'),
+      prisma.groupPrediction.findMany({ where: { groupId: { in: provisionalGroupIds } } }),
+    ])
+
+    for (const { id: participantId } of participants) {
+      let pts = 0
+      for (const groupId of provisionalGroupIds) {
+        const stds = standingsByGroup.get(groupId)!
+        const groupPreds = allGroupPredictions.filter((p) => p.participantId === participantId && p.groupId === groupId)
+        if (groupPreds.length !== 4) continue
+        const exactCount = groupPreds.filter(
+          (p) => stds.find((s) => s.teamId === p.teamId)?.realPosition === p.predictedPosition,
+        ).length
+        pts += exactCount * ptsExact
+        if (exactCount === 4) pts += bonusComplete
+      }
+      if (pts > 0) provisionalPointsMap.set(participantId, pts)
+    }
+  }
+
+  const pointsMap = new Map(
+    participants.map((p) => [
+      p.id,
+      (persistedPointsMap.get(p.id) ?? 0) + (provisionalPointsMap.get(p.id) ?? 0),
+    ]),
+  )
 
   function compareByScoreThenExact(a: { id: string }, b: { id: string }): number {
     const ptsDiff = Number(pointsMap.get(b.id) ?? 0) - Number(pointsMap.get(a.id) ?? 0)

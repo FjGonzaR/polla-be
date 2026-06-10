@@ -38,7 +38,7 @@ async function buildGroupEvents(participantId: string): Promise<ScoreEventInput[
     if (groupPreds.length !== 4) continue
 
     const groupStandings = standings.filter((s) => s.groupId === group.id)
-    if (groupStandings.length !== 4 || groupStandings.some((s) => s.realPosition === null || s.matchesPlayed === 0)) continue
+    if (!isGroupFinalized(group, groupStandings)) continue
 
     const exactCount = groupPreds.filter(
       (p) => groupStandings.find((s) => s.teamId === p.teamId)?.realPosition === p.predictedPosition,
@@ -193,7 +193,7 @@ export async function persistGroupScoreEvents(groupId: string): Promise<void> {
     prisma.groupStanding.findMany({ where: { groupId } }),
   ])
 
-  if (standings.length !== 4 || standings.some((s) => s.realPosition === null || s.matchesPlayed === 0)) return
+  if (standings.length !== 4 || standings.some((s) => s.realPosition === null || s.matchesPlayed < 3)) return
 
   const allPredictions = await prisma.groupPrediction.findMany({
     where: { groupId, participantId: { in: participants.map((p) => p.id) } },

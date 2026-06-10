@@ -28,7 +28,7 @@ async function createStandings(groupId: string, teams: Array<{ id: string; realP
   await Promise.all(
     teams.map((t) =>
       prisma.groupStanding.create({
-        data: { teamId: t.id, groupId, pts: 0, goalsFor: 0, goalsAgainst: 0, realPosition: t.realPosition },
+        data: { teamId: t.id, groupId, pts: 0, goalsFor: 0, goalsAgainst: 0, realPosition: t.realPosition, matchesPlayed: 1 },
       }),
     ),
   )

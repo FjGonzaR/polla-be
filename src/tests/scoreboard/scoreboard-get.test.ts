@@ -305,6 +305,53 @@ describe('GET /scoreboard', () => {
 
   // ── scoring pipeline ────────────────────────────────────────────────────
 
+  it('group predictions with provisional standings (matchesPlayed=1, no score_event) → provisional points shown', async () => {
+    await seedScoringParams({ pts_group_position_exact: 3, bonus_group_complete: 5 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { group, teams } = await buildFinalizedGroup('P')
+
+    // standings exist with realPosition but only 1 match played — provisional, not persisted
+    await prisma.groupStanding.createMany({
+      data: teams.map((t, i) => ({ teamId: t.id, groupId: group.id, realPosition: i + 1, matchesPlayed: 1 })),
+    })
+    await prisma.groupPrediction.createMany({
+      data: teams.map((t, i) => ({
+        participantId: participant.id,
+        groupId: group.id,
+        teamId: t.id,
+        predictedPosition: i + 1,
+      })),
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    expect(entry.total).toBe(4 * 3 + 5) // 17 pts — all provisional
+  })
+
+  it('provisional standings with matchesPlayed=0 → no points shown (pre-tournament data)', async () => {
+    await seedScoringParams({ pts_group_position_exact: 3, bonus_group_complete: 5 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { group, teams } = await buildFinalizedGroup('Q')
+
+    await prisma.groupStanding.createMany({
+      data: teams.map((t, i) => ({ teamId: t.id, groupId: group.id, realPosition: i + 1, matchesPlayed: 0 })),
+    })
+    await prisma.groupPrediction.createMany({
+      data: teams.map((t, i) => ({
+        participantId: participant.id,
+        groupId: group.id,
+        teamId: t.id,
+        predictedPosition: i + 1,
+      })),
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    expect(entry.total).toBe(0)
+  })
+
   it('group predictions: 4/4 exact → pts_group_position_exact*4 + bonus via persistGroupScoreEvents', async () => {
     await seedScoringParams({ pts_group_position_exact: 3, bonus_group_complete: 5 })
     const { participant, cookie } = await createAuthenticatedParticipant()
