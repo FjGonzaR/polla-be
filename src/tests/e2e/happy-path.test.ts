@@ -423,8 +423,10 @@ describe('E2E: user happy path — group phase', () => {
     //       = (4×3 + 5) × 12 groups = 17 × 12 = 204
     // + thirds: all 12 pos3 teams have identical stats so 8 qualify;
     //   user selected thirds from groups A–H → all 8 qualify → 8 × pts_third_correct(2) = 16
-    // Total: 204 + 16 = 220
-    const EXPECTED_USER_TOTAL = 220
+    // + powerup group rung (both qualified from groups): dark horse MEX +pts_dark_horse_per_round(8)
+    //   × scale_group(1); disappointment BRA −pts_disappointment_per_round(5) × scale_group(1) → net +3
+    // Total: 204 + 16 + 3 = 223
+    const EXPECTED_USER_TOTAL = 223
     // Friend: only pos1 correct per group × pts_group_position_exact(3), no bonus
     //         = 3 × 12 groups = 36
     const EXPECTED_FRIEND_TOTAL = 36
@@ -438,5 +440,21 @@ describe('E2E: user happy path — group phase', () => {
     expect(friendEntry.participant.id).toBe(friend.id)
     expect(friendEntry.total).toBe(EXPECTED_FRIEND_TOTAL)
     expect(friendEntry.prize).toBe(250000)
+
+    // ── Step 9: Breakdown matches the scoreboard total ────────────────────────
+    const breakdownRes = await server.inject({
+      method: 'GET',
+      url: `/scoreboard/${userParticipant!.id}/breakdown`,
+      headers: { cookie },
+    })
+
+    expect(breakdownRes.statusCode).toBe(200)
+    const breakdown = breakdownRes.json()
+    expect(breakdown.breakdown.groups).toBe(204)
+    expect(breakdown.breakdown.thirds).toBe(16)
+    expect(breakdown.breakdown.darkHorse).toBe(8) // MEX qualified → +8 × scale_group(1)
+    expect(breakdown.breakdown.disappointment).toBe(-5) // BRA qualified → -5 × scale_group(1)
+    // breakdown total equals the scoreboard total
+    expect(breakdown.total).toBe(EXPECTED_USER_TOTAL)
   })
 })

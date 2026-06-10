@@ -71,6 +71,38 @@ describe('PUT /admin/groups/thirds', () => {
     expect(event!.points).toBe(2)
   })
 
+  it('uploading thirds also persists powerup group events for a qualified dark horse', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8, scale_group: 1 })
+    const { cookie } = await createAuthenticatedAdmin()
+    const teams = await buildTwelveThirdPlaceTeams()
+    const qualifiedIds = teams.slice(0, 8).map((t) => t.id)
+
+    // a top8 team in some group to serve as the disappointment (not qualifying here)
+    const grp = await prisma.group.findFirst({ where: { label: 'A' } })
+    const disappoint = await prisma.team.create({ data: { name: 'Dpp', code: 'DPPX', groupId: grp!.id, isTop8: true } })
+
+    const participant = await buildParticipant()
+    // dark horse is a 3rd-place team that will be selected as a qualified third
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: qualifiedIds[0], disappointmentTeamId: disappoint.id },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'PUT',
+      url: '/admin/groups/thirds',
+      headers: { cookie },
+      payload: { teamIds: qualifiedIds },
+    })
+    expect(res.statusCode).toBe(200)
+
+    const event = await prisma.scoreEvent.findFirst({
+      where: { participantId: participant.id, paramKey: 'pts_dark_horse_group' },
+    })
+    expect(event).not.toBeNull()
+    expect(event!.points).toBe(8) // 8 * scale_group(1)
+  })
+
   it('re-setting with a different set replaces the previous qualification', async () => {
     await seedScoringParams()
     const { cookie } = await createAuthenticatedAdmin()

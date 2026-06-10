@@ -9,6 +9,7 @@ const DEFAULT_SCORING_PARAMS: Record<string, number> = {
   mult_triple: 3,
   pts_dark_horse_per_round: 8,
   pts_disappointment_per_round: 5,
+  scale_group: 1,
   scale_r32: 1,
   scale_r16: 1.5,
   scale_qf: 2,
