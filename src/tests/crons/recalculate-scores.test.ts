@@ -114,6 +114,42 @@ describe('recalculateScores', () => {
     expect(events).toHaveLength(0)
   })
 
+  it('group standings with real_position but matchesPlayed=0 → no score events created', async () => {
+    await seedScoringParams()
+    const group = await new GroupBuilder().withLabel('A').withName('Group A').build()
+    const [t1, t2, t3, t4] = await Promise.all([
+      new TeamBuilder().withName('T1').withCode('T1C').withGroupId(group.id).build(),
+      new TeamBuilder().withName('T2').withCode('T2C').withGroupId(group.id).build(),
+      new TeamBuilder().withName('T3').withCode('T3C').withGroupId(group.id).build(),
+      new TeamBuilder().withName('T4').withCode('T4C').withGroupId(group.id).build(),
+    ])
+
+    // API pre-populates real_position before tournament starts (matchesPlayed=0)
+    await prisma.groupStanding.createMany({
+      data: [
+        { teamId: t1.id, groupId: group.id, realPosition: 1, pts: 0, goalsFor: 0, goalsAgainst: 0, matchesPlayed: 0, qualifiedAsThird: false },
+        { teamId: t2.id, groupId: group.id, realPosition: 2, pts: 0, goalsFor: 0, goalsAgainst: 0, matchesPlayed: 0, qualifiedAsThird: false },
+        { teamId: t3.id, groupId: group.id, realPosition: 3, pts: 0, goalsFor: 0, goalsAgainst: 0, matchesPlayed: 0, qualifiedAsThird: false },
+        { teamId: t4.id, groupId: group.id, realPosition: 4, pts: 0, goalsFor: 0, goalsAgainst: 0, matchesPlayed: 0, qualifiedAsThird: false },
+      ],
+    })
+
+    const participant = await buildParticipant()
+    await prisma.groupPrediction.createMany({
+      data: [
+        { participantId: participant.id, groupId: group.id, teamId: t1.id, predictedPosition: 1 },
+        { participantId: participant.id, groupId: group.id, teamId: t2.id, predictedPosition: 2 },
+        { participantId: participant.id, groupId: group.id, teamId: t3.id, predictedPosition: 3 },
+        { participantId: participant.id, groupId: group.id, teamId: t4.id, predictedPosition: 4 },
+      ],
+    })
+
+    await recalculateScores()
+
+    const events = await prisma.scoreEvent.findMany({ where: { participantId: participant.id } })
+    expect(events).toHaveLength(0)
+  })
+
   it('triple_active + wrong exact score (correct advance) → zero points for that match', async () => {
     await seedScoringParams()
     const group = await new GroupBuilder().withLabel('A').withName('Group A').build()
