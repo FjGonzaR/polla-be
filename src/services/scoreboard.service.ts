@@ -389,12 +389,12 @@ export async function getScoreboardBreakdown(
     computeProvisionalKoPoints(onlyThisParticipant),
     computeProvisionalPowerupGroupPoints(onlyThisParticipant),
   ]);
-  const powerupGroup = provPowerupGroup.get(participantId);
+  const powerUpGroup = provPowerupGroup.get(participantId);
   const provisional = {
     groups: provGroup.get(participantId) ?? 0,
     ko: provKo.get(participantId) ?? 0,
-    darkHorse: powerupGroup?.darkHorse ?? 0,
-    disappointment: powerupGroup?.disappointment ?? 0,
+    darkHorse: powerUpGroup?.darkHorse ?? 0,
+    disappointment: powerUpGroup?.disappointment ?? 0,
   };
 
   return toScoreBreakdownDto(

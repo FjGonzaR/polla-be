@@ -440,5 +440,21 @@ describe('E2E: user happy path — group phase', () => {
     expect(friendEntry.participant.id).toBe(friend.id)
     expect(friendEntry.total).toBe(EXPECTED_FRIEND_TOTAL)
     expect(friendEntry.prize).toBe(250000)
+
+    // ── Step 9: Breakdown matches the scoreboard total ────────────────────────
+    const breakdownRes = await server.inject({
+      method: 'GET',
+      url: `/scoreboard/${userParticipant!.id}/breakdown`,
+      headers: { cookie },
+    })
+
+    expect(breakdownRes.statusCode).toBe(200)
+    const breakdown = breakdownRes.json()
+    expect(breakdown.breakdown.groups).toBe(204)
+    expect(breakdown.breakdown.thirds).toBe(16)
+    expect(breakdown.breakdown.darkHorse).toBe(8) // MEX qualified → +8 × scale_group(1)
+    expect(breakdown.breakdown.disappointment).toBe(-5) // BRA qualified → -5 × scale_group(1)
+    // breakdown total equals the scoreboard total
+    expect(breakdown.total).toBe(EXPECTED_USER_TOTAL)
   })
 })
