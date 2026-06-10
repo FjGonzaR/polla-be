@@ -136,6 +136,25 @@ describe('syncKoResults', () => {
     expect(updated?.status).toBe('SCHEDULED')
   })
 
+  it('match already LIVE → scoreHome/scoreAway updated when score changes mid-match', async () => {
+    const { match } = await buildKoMatchForSync('ext-match-score-update')
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { status: 'LIVE', scoreHome: 1, scoreAway: 0 },
+    })
+
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ finished: 'FALSE', time_elapsed: '60', home_score: '2', away_score: '0' }),
+    )
+
+    await syncKoResults()
+
+    const updated = await prisma.match.findUnique({ where: { id: match.id } })
+    expect(updated?.status).toBe('LIVE')
+    expect(updated?.scoreHome).toBe(2)
+    expect(updated?.scoreAway).toBe(0)
+  })
+
   it('match already LIVE → no redundant update when still in progress', async () => {
     const round = await prisma.round.upsert({
       where: { slug: 'R32' },
