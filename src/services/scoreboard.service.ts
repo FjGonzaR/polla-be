@@ -7,7 +7,7 @@ import {
   type ScoreBreakdownDto,
 } from '../mappers/scoreboard.mapper.js'
 
-export async function getScoreboard(): Promise<{ updatedAt: Date; data: ScoreboardEntryDto[] }> {
+export async function getScoreboard(viewerParticipantId: string): Promise<{ updatedAt: Date; data: ScoreboardEntryDto[] }> {
   const [participants, scoreGroups, exactKoGroups] = await Promise.all([
     prisma.participant.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
     prisma.scoreEvent.groupBy({ by: ['participantId'], _sum: { points: true } }),
@@ -48,7 +48,14 @@ export async function getScoreboard(): Promise<{ updatedAt: Date; data: Scoreboa
     return toScoreboardEntryDto(r, rankGroupSize.get(r) ?? 1, p, Number(pointsMap.get(p.id) ?? 0))
   })
 
-  return { updatedAt: new Date(), data: data.slice(0, 10) }
+  const top10 = data.slice(0, 10)
+  const viewerInTop10 = top10.some((e) => e.participant.id === viewerParticipantId)
+  if (!viewerInTop10) {
+    const viewerEntry = data.find((e) => e.participant.id === viewerParticipantId)
+    if (viewerEntry) top10.push(viewerEntry)
+  }
+
+  return { updatedAt: new Date(), data: top10 }
 }
 
 export async function getScoreboardBreakdown(participantId: string): Promise<ScoreBreakdownDto> {
@@ -56,7 +63,7 @@ export async function getScoreboardBreakdown(participantId: string): Promise<Sco
     prisma.participant.findUnique({ where: { id: participantId }, select: { id: true, name: true } }),
     prisma.scoreEvent.findMany({ where: { participantId }, select: { paramKey: true, points: true } }),
     prisma.koPrediction.count({ where: { participantId, tripleActive: true } }),
-    getScoreboard(),
+    getScoreboard(participantId),
   ])
 
   if (!participant) throw new AppError(404, 'PARTICIPANT_NOT_FOUND', 'Participant not found')

@@ -4,8 +4,8 @@ import { getScoreboard, getScoreboardBreakdown } from '../services/scoreboard.se
 export default async function scoreboardRoutes(fastify: FastifyInstance) {
   fastify.addHook('preHandler', fastify.authenticate)
 
-  fastify.get('/', async (_request, reply) => {
-    const data = await getScoreboard()
+  fastify.get('/', async (request, reply) => {
+    const data = await getScoreboard(request.user.id)
     return reply.code(200).send(data)
   })
 

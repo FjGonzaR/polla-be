@@ -231,6 +231,52 @@ describe('GET /scoreboard', () => {
     expect(tied.every((e) => e.prize === 25000)).toBe(true) // 50K / 2 = 25K
   })
 
+  it('viewer outside top 10 → 11 entries with viewer appended last', async () => {
+    const { cookie, participant: viewer } = await createAuthenticatedParticipant({ name: 'Viewer' })
+
+    // 10 participants with more points than viewer
+    for (let i = 1; i <= 10; i++) {
+      const p = await buildParticipant({ name: `Top${i}` })
+      await prisma.scoreEvent.create({
+        data: { participantId: p.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 + i },
+      })
+    }
+    // viewer has fewer points
+    await prisma.scoreEvent.create({
+      data: { participantId: viewer.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 1 },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json<{ data: { rank: number; participant: { id: string } }[] }>()
+    expect(data).toHaveLength(11)
+    expect(data[10].participant.id).toBe(viewer.id)
+    expect(data[10].rank).toBe(11)
+  })
+
+  it('viewer inside top 10 → exactly 10 entries, no duplication', async () => {
+    const { cookie, participant: viewer } = await createAuthenticatedParticipant({ name: 'Viewer' })
+
+    for (let i = 1; i <= 5; i++) {
+      const p = await buildParticipant({ name: `Other${i}` })
+      await prisma.scoreEvent.create({
+        data: { participantId: p.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: i },
+      })
+    }
+    await prisma.scoreEvent.create({
+      data: { participantId: viewer.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 50 },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+
+    const { data } = res.json<{ data: { participant: { id: string } }[] }>()
+    expect(data).toHaveLength(6)
+    expect(data.filter((e) => e.participant.id === viewer.id)).toHaveLength(1)
+  })
+
   it('tie entirely outside prize positions (rank 4+) → prize null', async () => {
     const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'A' })
     const p2 = await buildParticipant({ name: 'B' })
