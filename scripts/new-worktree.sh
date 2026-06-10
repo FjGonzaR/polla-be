@@ -23,4 +23,10 @@ else
   echo "Warning: no .env found in $REPO_ROOT — skipped copy"
 fi
 
+echo "Installing dependencies..."
+npm --prefix "$WORKTREE_PATH" install
+
+echo "Generating Prisma client..."
+npm --prefix "$WORKTREE_PATH" exec -- prisma generate
+
 echo "Worktree ready: $WORKTREE_PATH (branch: $BRANCH)"
