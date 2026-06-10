@@ -18,6 +18,7 @@ import { syncKoResults } from "./crons/sync-ko-results.js";
 import { recalculateScores } from "./crons/recalculate-scores.js";
 import { sendWhatsappReminders } from "./crons/whatsapp-reminder.js";
 import { sendGroupPhaseReminder } from "./crons/group-phase-reminder.js";
+import { calculateGroupStats } from "./crons/calculate-group-stats.js";
 import { AppError } from "./lib/errors.js";
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -71,8 +72,11 @@ export async function buildServer(): Promise<FastifyInstance> {
     cron.schedule("0 17 10 6 *", sendGroupPhaseReminder);
     cron.schedule("0 14 11 6 *", sendGroupPhaseReminder);
 
+    // calculate-group-stats: Jun 11 2026 at 19:00 UTC (2PM Colombia, tournament start)
+    cron.schedule("0 19 11 6 *", calculateGroupStats);
+
     server.log.info(
-      "Crons registrados: sync-standings + sync-ko-results + recalculate-scores + whatsapp-reminder + group-phase-reminder",
+      "Crons registrados: sync-standings + sync-ko-results + recalculate-scores + whatsapp-reminder + group-phase-reminder + calculate-group-stats",
     );
   }
 

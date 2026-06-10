@@ -1,6 +1,7 @@
 import type {
   Group,
   GroupPrediction,
+  GroupPositionStat,
   GroupStanding,
   Team,
 } from "@prisma/client";
@@ -11,7 +12,11 @@ import { getParam } from "./scoring.service.js";
 
 export async function findAllGroups(): Promise<GroupDto[]> {
   const groups = await prisma.group.findMany({
-    include: { teams: true },
+    include: {
+      teams: {
+        include: { positionStats: true },
+      },
+    },
     orderBy: { label: "asc" },
   });
   return groups.map(toGroupDto);
@@ -90,6 +95,7 @@ interface RankingDto {
   isTop8: boolean;
   flag: string | null;
   predictedPosition: number;
+  positionStats: { pct: number } | null;
 }
 
 interface PointsEarned {
@@ -118,6 +124,16 @@ type LedgerGroupEntry = {
 };
 type LedgerGroupMap = Map<string, LedgerGroupEntry>;
 
+function buildStatKey(teamId: string, position: number): string {
+  return `${teamId}:${position}`;
+}
+
+function buildStatMap(
+  stats: Pick<GroupPositionStat, "teamId" | "position" | "pct">[],
+): Map<string, number> {
+  return new Map(stats.map((s) => [buildStatKey(s.teamId, s.position), s.pct]));
+}
+
 function computeGroupStatus(
   groups: (Group & { teams: Team[] })[],
   predictions: (GroupPrediction & { team: Team })[],
@@ -125,6 +141,7 @@ function computeGroupStatus(
   ptsExact: number,
   bonusComplete: number,
   ledgerByGroup: LedgerGroupMap = new Map(),
+  statMap: Map<string, number> = new Map(),
 ): MyGroupPredictionsDto {
   const data: GroupPredictionStatus[] = groups.map((group) => {
     const groupPreds = predictions
@@ -139,6 +156,10 @@ function computeGroupStatus(
       isTop8: p.team.isTop8,
       flag: p.team.flag,
       predictedPosition: p.predictedPosition,
+      positionStats: (() => {
+        const pct = statMap.get(buildStatKey(p.teamId, p.predictedPosition));
+        return pct !== undefined ? { pct } : null;
+      })(),
     }));
 
     let pointsEarned: PointsEarned | null = null;
@@ -208,7 +229,7 @@ function buildLedgerGroupMap(
 export async function findMyGroupPredictions(
   participantId: string,
 ): Promise<MyGroupPredictionsDto> {
-  const [groups, predictions, allStandings] = await Promise.all([
+  const [groups, predictions, allStandings, rawStats] = await Promise.all([
     prisma.group.findMany({
       include: { teams: true },
       orderBy: { label: "asc" },
@@ -218,6 +239,9 @@ export async function findMyGroupPredictions(
       include: { team: true },
     }),
     prisma.groupStanding.findMany(),
+    prisma.groupPositionStat.findMany({
+      select: { teamId: true, position: true, pct: true },
+    }),
   ]);
 
   const groupIds = groups.map((g) => g.id);
@@ -230,6 +254,7 @@ export async function findMyGroupPredictions(
     select: { paramKey: true, points: true, groupId: true },
   });
   const ledgerByGroup = buildLedgerGroupMap(ledgerEvents);
+  const statMap = buildStatMap(rawStats);
 
   const hasAnyComplete = groups.some(
     (g) => predictions.filter((p) => p.groupId === g.id).length === 4,
@@ -248,6 +273,7 @@ export async function findMyGroupPredictions(
     ptsExact,
     bonusComplete,
     ledgerByGroup,
+    statMap,
   );
 }
 
@@ -298,6 +324,7 @@ export async function findFriendsGroupPredictions(
     allStandings,
     allPredictions,
     allLedgerEvents,
+    rawStats,
     ptsExact,
     bonusComplete,
   ] = await Promise.all([
@@ -322,6 +349,9 @@ export async function findFriendsGroupPredictions(
         groupId: true,
       },
     }),
+    prisma.groupPositionStat.findMany({
+      select: { teamId: true, position: true, pct: true },
+    }),
     getParam("pts_group_position_exact"),
     getParam("bonus_group_complete"),
   ]);
@@ -343,6 +373,8 @@ export async function findFriendsGroupPredictions(
     if (e.groupId) gMap.set(e.groupId, curr);
   }
 
+  const statMap = buildStatMap(rawStats);
+
   const data: FriendPrediction[] = others.map((p) => {
     const predictions = allPredictions.filter(
       (pred) => pred.participantId === p.id,
@@ -355,6 +387,7 @@ export async function findFriendsGroupPredictions(
       ptsExact,
       bonusComplete,
       ledgerByGroup,
+      statMap,
     );
     const totalGroupPoints = groupData.reduce(
       (sum, g) => sum + (g.pointsEarned?.total ?? 0),

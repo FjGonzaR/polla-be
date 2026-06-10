@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { buildServer } from '../../server.js'
 import { prisma } from '../../lib/prisma.js'
 import { createAuthenticatedParticipant } from '../helpers/auth.helper.js'
+import { buildGroupPositionStat } from '../builders/group-position-stat.builder.js'
 import { GroupBuilder } from '../builders/group.builder.js'
 import { TeamBuilder } from '../builders/team.builder.js'
 import { MatchBuilder } from '../builders/match.builder.js'
@@ -224,6 +225,48 @@ describe('GET /groups/predictions/friends', () => {
 
     expect(res.statusCode).toBe(404)
     expect(res.json().code).toBe('PARTICIPANT_NOT_FOUND')
+  })
+
+  it('sin stats calculados → positionStats null en rankings del amigo', async () => {
+    await new MatchBuilder().withScheduledAt(new Date(Date.now() - 86_400_000)).build()
+    const { cookie } = await createAuthenticatedParticipant({ googleId: 'uid-me', email: 'me@test.com' })
+
+    await predictGroup(friend1Id, groupAId, [
+      { teamId: mex.id, position: 1 },
+      { teamId: usa.id, position: 2 },
+      { teamId: col.id, position: 3 },
+      { teamId: ecu.id, position: 4 },
+    ])
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/groups/predictions/friends?participantId=${friend1Id}`, headers: { cookie } })
+
+    const rankings = res.json().data[0].predictions[0].rankings
+    for (const ranking of rankings) {
+      expect(ranking.positionStats).toBeNull()
+    }
+  })
+
+  it('stats calculados → positionStats.pct en ranking del amigo para la posición predicha', async () => {
+    await new MatchBuilder().withScheduledAt(new Date(Date.now() - 86_400_000)).build()
+    await buildGroupPositionStat({ teamId: mex.id, position: 1, pct: 70 })
+
+    const { cookie } = await createAuthenticatedParticipant({ googleId: 'uid-me', email: 'me@test.com' })
+    await predictGroup(friend1Id, groupAId, [
+      { teamId: mex.id, position: 1 },
+      { teamId: usa.id, position: 2 },
+      { teamId: col.id, position: 3 },
+      { teamId: ecu.id, position: 4 },
+    ])
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/groups/predictions/friends?participantId=${friend1Id}`, headers: { cookie } })
+
+    const rankings = res.json().data[0].predictions[0].rankings
+    const mexRanking = rankings.find((r: { code: string }) => r.code === 'MEX')
+    const usaRanking = rankings.find((r: { code: string }) => r.code === 'USA')
+    expect(mexRanking.positionStats).toEqual({ pct: 70 })
+    expect(usaRanking.positionStats).toBeNull()
   })
 
   it('401 without cookie', async () => {

@@ -9,6 +9,7 @@ afterEach(async () => {
   await prisma.thirdPrediction.deleteMany()
   await prisma.powerup.deleteMany()
   await prisma.groupStanding.deleteMany()
+  await prisma.groupPositionStat.deleteMany()
   await prisma.matchReminder.deleteMany()
   await prisma.match.deleteMany()
   await prisma.round.deleteMany()

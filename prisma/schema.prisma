@@ -82,25 +82,38 @@ model Group {
 }
 
 model Team {
-  id                     String            @id @default(uuid())
+  id                     String               @id @default(uuid())
   name                   String
-  code                   String            @unique
-  externalTeamId         String?           @unique
-  isTop8                 Boolean           @default(false) @map("is_top8")
+  code                   String               @unique
+  externalTeamId         String?              @unique
+  isTop8                 Boolean              @default(false) @map("is_top8")
   flag                   String?
-  groupId                String            @map("group_id")
-  group                  Group             @relation(fields: [groupId], references: [id])
+  groupId                String               @map("group_id")
+  group                  Group                @relation(fields: [groupId], references: [id])
   groupPredictions       GroupPrediction[]
   thirdPredictions       ThirdPrediction[]
-  homeMatches            Match[]           @relation("HomeTeam")
-  awayMatches            Match[]           @relation("AwayTeam")
-  wonMatches             Match[]           @relation("WinnerTeam")
-  darkHorsePowerups      Powerup[]         @relation("DarkHorse")
-  disappointmentPowerups Powerup[]         @relation("Disappointment")
+  homeMatches            Match[]              @relation("HomeTeam")
+  awayMatches            Match[]              @relation("AwayTeam")
+  wonMatches             Match[]              @relation("WinnerTeam")
+  darkHorsePowerups      Powerup[]            @relation("DarkHorse")
+  disappointmentPowerups Powerup[]            @relation("Disappointment")
   koPredictionsAdvanced  KoPrediction[]
   standing               GroupStanding?
+  positionStats          GroupPositionStat[]
 
   @@map("teams")
+}
+
+model GroupPositionStat {
+  id        String   @id @default(uuid())
+  teamId    String   @map("team_id")
+  team      Team     @relation(fields: [teamId], references: [id])
+  position  Int
+  pct       Float
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([teamId, position])
+  @@map("group_position_stats")
 }
 
 model Round {

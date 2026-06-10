@@ -749,10 +749,21 @@ paths:
                     label: "A"
                     name: "Grupo A"
                     teams:
-                      - { id: "uuid-mex", name: "México",         code: "MEX", isTop8: false, flag: "https://flagcdn.com/w80/mx.png" }
-                      - { id: "uuid-usa", name: "Estados Unidos", code: "USA", isTop8: true,  flag: "https://flagcdn.com/w80/us.png" }
-                      - { id: "uuid-col", name: "Colombia",       code: "COL", isTop8: false, flag: "https://flagcdn.com/w80/co.png" }
-                      - { id: "uuid-ecu", name: "Ecuador",        code: "ECU", isTop8: false, flag: "https://flagcdn.com/w80/ec.png" }
+                      - id: "uuid-mex"
+                        name: "México"
+                        code: "MEX"
+                        isTop8: false
+                        flag: "https://flagcdn.com/w80/mx.png"
+                        positionStats:
+                          - { position: 1, pct: 60.0 }
+                          - { position: 2, pct: 25.0 }
+                          - { position: 3, pct: 15.0 }
+                      - id: "uuid-usa"
+                        name: "Estados Unidos"
+                        code: "USA"
+                        isTop8: true
+                        flag: "https://flagcdn.com/w80/us.png"
+                        positionStats: null
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -864,10 +875,10 @@ paths:
                     name: "Grupo A"
                     groupComplete: true
                     rankings:
-                      - { teamId: "uuid-mex", name: "México",         code: "MEX", isTop8: false, flag: "https://flagcdn.com/w80/mx.png", predictedPosition: 1 }
-                      - { teamId: "uuid-usa", name: "Estados Unidos", code: "USA", isTop8: true,  flag: "https://flagcdn.com/w80/us.png", predictedPosition: 2 }
-                      - { teamId: "uuid-col", name: "Colombia",       code: "COL", isTop8: false, flag: "https://flagcdn.com/w80/co.png", predictedPosition: 3 }
-                      - { teamId: "uuid-ecu", name: "Ecuador",        code: "ECU", isTop8: false, flag: "https://flagcdn.com/w80/ec.png", predictedPosition: 4 }
+                      - { teamId: "uuid-mex", name: "México",         code: "MEX", isTop8: false, flag: "https://flagcdn.com/w80/mx.png", predictedPosition: 1, positionStats: { pct: 60.0 } }
+                      - { teamId: "uuid-usa", name: "Estados Unidos", code: "USA", isTop8: true,  flag: "https://flagcdn.com/w80/us.png", predictedPosition: 2, positionStats: { pct: 45.0 } }
+                      - { teamId: "uuid-col", name: "Colombia",       code: "COL", isTop8: false, flag: "https://flagcdn.com/w80/co.png", predictedPosition: 3, positionStats: null }
+                      - { teamId: "uuid-ecu", name: "Ecuador",        code: "ECU", isTop8: false, flag: "https://flagcdn.com/w80/ec.png", predictedPosition: 4, positionStats: { pct: 30.0 } }
                   - groupId: "uuid-B"
                     label: "B"
                     name: "Grupo B"
@@ -923,7 +934,7 @@ paths:
                             name: "Grupo A"
                             groupComplete: true
                             rankings:
-                              - { teamId: "uuid-bra", name: "Brasil", code: "BRA", isTop8: true, flag: "https://flagcdn.com/w80/br.png", position: 1 }
+                              - { teamId: "uuid-bra", name: "Brasil", code: "BRA", isTop8: true, flag: "https://flagcdn.com/w80/br.png", predictedPosition: 1, positionStats: { pct: 55.0 } }
                 no_disponible:
                   value:
                     available: false
@@ -1856,13 +1867,27 @@ components:
 
     Team:
       type: object
-      required: [id, name, code, isTop8]
+      required: [id, name, code, isTop8, positionStats]
       properties:
         id:     { type: string, format: uuid }
         name:   { type: string }
         code:   { type: string, description: "Código ISO 3 letras, ej: COL" }
         isTop8: { type: boolean }
         flag:   { type: [string, 'null'], description: "URL de la bandera del equipo" }
+        positionStats:
+          description: >
+            Estadísticas de predicción por posición. Array de hasta 4 entradas (una por posición
+            donde al menos un participante predijo este equipo). Null hasta que el cron
+            calculate-group-stats corra el 11 de junio a las 2PM Colombia.
+          oneOf:
+            - type: array
+              items:
+                type: object
+                required: [position, pct]
+                properties:
+                  position: { type: integer, minimum: 1, maximum: 4 }
+                  pct:      { type: number, description: "% de participantes que pusieron a este equipo en esta posición (0.0–100.0)" }
+            - type: 'null'
 
     Group:
       type: object
@@ -1879,14 +1904,24 @@ components:
     GroupRanking:
       type: object
       description: Posición predicha de un equipo dentro de su grupo
-      required: [teamId, name, code, isTop8, predictedPosition]
+      required: [teamId, name, code, isTop8, predictedPosition, positionStats]
       properties:
-        teamId:           { type: string, format: uuid }
-        name:             { type: string }
-        code:             { type: string }
-        isTop8:           { type: boolean }
-        flag:             { type: [string, 'null'], description: "URL de la bandera del equipo" }
+        teamId:            { type: string, format: uuid }
+        name:              { type: string }
+        code:              { type: string }
+        isTop8:            { type: boolean }
+        flag:              { type: [string, 'null'], description: "URL de la bandera del equipo" }
         predictedPosition: { type: integer, minimum: 1, maximum: 4 }
+        positionStats:
+          description: >
+            Estadística de cuántos participantes predijeron a este equipo en la misma posición
+            que tú (predictedPosition). Null hasta que el cron corra el 11 de junio.
+          oneOf:
+            - type: object
+              required: [pct]
+              properties:
+                pct: { type: number, description: "% de participantes que pusieron a este equipo en predictedPosition (0.0–100.0)" }
+            - type: 'null'
 
     GroupPrediction:
       type: object

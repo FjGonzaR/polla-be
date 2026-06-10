@@ -2,9 +2,11 @@ import { afterEach, describe, it, expect } from 'vitest'
 import { prisma } from '../../lib/prisma.js'
 import { buildServer } from '../../server.js'
 import { buildParticipant } from '../builders/participant.builder.js'
+import { buildGroupPositionStat } from '../builders/group-position-stat.builder.js'
 import { signSession } from '../../lib/session.js'
 
 afterEach(async () => {
+  await prisma.groupPositionStat.deleteMany()
   await prisma.team.deleteMany()
   await prisma.group.deleteMany()
 })
@@ -53,8 +55,37 @@ describe('GET /groups', () => {
     expect(data[0].teams).toHaveLength(1)
     expect(data[0].teams[0].code).toBe('ARG')
     expect(data[0].teams[0].flag).toBe('https://flagcdn.com/w80/ar.png')
+    expect(data[0].teams[0].positionStats).toBeNull()
     expect(data[1].teams[0].code).toBe('BRA')
     expect(data[1].teams[0].flag).toBe('https://flagcdn.com/w80/br.png')
+    expect(data[1].teams[0].positionStats).toBeNull()
+  })
+
+  it('stats calculados → positionStats incluido en cada equipo', async () => {
+    const participant = await buildParticipant()
+    const token = signSession({ userId: participant.id })
+
+    const groupA = await prisma.group.create({ data: { name: 'Grupo A', label: 'A' } })
+    const team = await prisma.team.create({
+      data: { name: 'Argentina', code: 'ARG', groupId: groupA.id, flag: null },
+    })
+    await buildGroupPositionStat({ teamId: team.id, position: 1, pct: 75.5 })
+    await buildGroupPositionStat({ teamId: team.id, position: 2, pct: 24.5 })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'GET',
+      url: '/groups',
+      cookies: { session: token },
+    })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json()
+    const stats = data[0].teams[0].positionStats as Array<{ position: number; pct: number }>
+    expect(stats).not.toBeNull()
+    expect(stats).toHaveLength(2)
+    const pos1 = stats.find((s) => s.position === 1)
+    expect(pos1?.pct).toBe(75.5)
   })
 
   it('sin cookie → 401 MISSING_SESSION', async () => {
