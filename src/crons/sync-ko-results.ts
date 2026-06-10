@@ -86,14 +86,22 @@ export async function syncKoResults(): Promise<void> {
           actualizados++
         } else if (
           matchExterno.finished === 'FALSE' &&
-          matchExterno.time_elapsed !== 'notstarted' &&
-          partido.status !== MatchStatus.LIVE
+          matchExterno.time_elapsed !== 'notstarted'
         ) {
+          const liveHome = parseInt(matchExterno.home_score)
+          const liveAway = parseInt(matchExterno.away_score)
+
           await prisma.match.update({
             where: { id: partido.id },
-            data: { status: MatchStatus.LIVE },
+            data: {
+              status: MatchStatus.LIVE,
+              scoreHome: liveHome,
+              scoreAway: liveAway,
+            },
           })
-          console.info(`[sync-ko-results] Partido ${partido.id} marcado como live`)
+          console.info(
+            `[sync-ko-results] Partido ${partido.id} live: ${liveHome}-${liveAway}`,
+          )
         }
       } catch (errorPartido) {
         console.error(

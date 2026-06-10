@@ -508,6 +508,114 @@ describe('GET /scoreboard', () => {
     expect(entry.total).toBe(8)
   })
 
+  // ── provisional KO live scoring ─────────────────────────────────────────
+
+  it('LIVE match, home leading, prediction correct → provisional pts_ko_advances + pts_ko_exact_score', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    // (4 + 6) * scale_r32(1) = 10
+    expect(entry.total).toBe(10)
+  })
+
+  it('LIVE match, tie, prediction score matches → provisional pts_ko_exact_score only (no advances)', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 1, scoreAway: 1, status: 'LIVE' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 1, scoreAway: 1, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    // no advances (tie), exact matches → 6 * 1 = 6
+    expect(entry.total).toBe(6)
+  })
+
+  it('LIVE match, tie, prediction score does not match → 0 provisional pts', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 1, scoreAway: 1, status: 'LIVE' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    expect(entry.total).toBe(0)
+  })
+
+  it('LIVE match, triple_active, exact miss → 0 pts (triple-or-nothing)', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
+    })
+    // correct advances, wrong score
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 1, scoreAway: 0, teamAdvancesId: home.id, tripleActive: true },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    expect(entry.total).toBe(0)
+  })
+
+  it('LIVE → FINISHED: provisional pts replaced by persisted events, net total unchanged', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    const server = await buildServer()
+    const liveRes = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    expect(liveRes.json<{ data: { total: number }[] }>().data[0].total).toBe(10)
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { status: 'FINISHED', winnerTeamId: home.id },
+    })
+    await persistKoMatchScoreEvents(match.id)
+
+    const finishedRes = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    expect(finishedRes.json<{ data: { total: number }[] }>().data[0].total).toBe(10)
+  })
+
   it('disappointment team wins → negative pts via persistPowerupKoMatchEvents', async () => {
     await seedScoringParams({ pts_disappointment_per_round: 5, pts_dark_horse_per_round: 8 })
     const { participant, cookie } = await createAuthenticatedParticipant()
