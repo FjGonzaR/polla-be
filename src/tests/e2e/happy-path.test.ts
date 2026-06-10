@@ -6,6 +6,7 @@ import { seedScoringParams } from '../helpers/scoring.helper.js'
 import { createAuthenticatedParticipant } from '../helpers/auth.helper.js'
 import { buildInvitation } from '../builders/invitation.builder.js'
 import { syncStandings } from '../../crons/sync-standings.js'
+import { setQualifiedThirds } from '../../services/admin.service.js'
 import type { WorldCupStanding } from '../../types/worldcup-api.types.js'
 
 // --- Mocks ---
@@ -361,6 +362,9 @@ describe('E2E: user happy path — group phase', () => {
     // API returns real positions matching user's predictions (teams[0] → pos1, etc.)
     mockGetStandings.mockResolvedValue(buildApiStandings(teams))
     await syncStandings()
+
+    // ── Step 6b: Admin sets qualified thirds (groups A–H qualify) ─────────────
+    await setQualifiedThirds(thirdTeamCodes.map((code) => teams[code].id))
 
     // Fetch the user participant created during login
     const userParticipant = await prisma.participant.findFirst({

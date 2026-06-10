@@ -3,43 +3,7 @@ import { worldcupApi } from '../lib/worldcup-api.client.js'
 import {
   isGroupFinalized,
   persistGroupScoreEvents,
-  persistThirdScoreEvents,
 } from '../services/score-calculation.service.js'
-
-async function maybeUpdateQualifiedThirds(): Promise<void> {
-  const allGroups = await prisma.group.findMany({
-    select: { id: true, lastMatchAt: true, standings: { select: { matchesPlayed: true, teamId: true, pts: true, goalsFor: true, goalsAgainst: true, realPosition: true } } },
-  })
-
-  if (allGroups.length !== 12) return
-  const allFinalized = allGroups.every((g) => isGroupFinalized(g, g.standings))
-  if (!allFinalized) return
-
-  const thirds = allGroups
-    .map((g) => g.standings.find((s) => s.realPosition === 3))
-    .filter((s): s is NonNullable<typeof s> => s != null)
-    .sort((a, b) =>
-      b.pts - a.pts ||
-      (b.goalsFor - b.goalsAgainst) - (a.goalsFor - a.goalsAgainst) ||
-      b.goalsFor - a.goalsFor,
-    )
-
-  if (thirds.length !== 12) return
-
-  const qualifiedIds = new Set(thirds.slice(0, 8).map((s) => s.teamId))
-
-  await prisma.$transaction(
-    thirds.map((s) =>
-      prisma.groupStanding.update({
-        where: { teamId: s.teamId },
-        data: { qualifiedAsThird: qualifiedIds.has(s.teamId) },
-      }),
-    ),
-  )
-
-  await persistThirdScoreEvents()
-  console.info('[sync-standings] Thirds ranking updated and score events persisted')
-}
 
 export async function syncStandings(): Promise<void> {
   console.info('[sync-standings] Iniciando sincronización...')
@@ -137,8 +101,6 @@ export async function syncStandings(): Promise<void> {
         await persistGroupScoreEvents(group.id)
       }
     }
-
-    await maybeUpdateQualifiedThirds()
 
     console.info(
       `[sync-standings] OK — ${gruposSincronizados} grupos, ` +
