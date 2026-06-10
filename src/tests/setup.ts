@@ -12,6 +12,7 @@ afterEach(async () => {
   await prisma.groupStanding.deleteMany()
   await prisma.groupPositionStat.deleteMany()
   await prisma.matchReminder.deleteMany()
+  await prisma.matchPredictionStat.deleteMany()
   await prisma.match.deleteMany()
   await prisma.round.deleteMany()
   await prisma.team.deleteMany()

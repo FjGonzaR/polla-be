@@ -1,4 +1,4 @@
-import type { KoPrediction, Match, RoundSlug, Team } from '@prisma/client'
+import type { KoPrediction, Match, MatchPredictionStat, RoundSlug, Team } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
 import { getParam } from './scoring.service.js'
@@ -27,6 +27,7 @@ type MatchWithTeamsAndPredictions = Match & {
   homeTeam: Team | null
   awayTeam: Team | null
   koPredictions: KoPrediction[]
+  predictionStat?: MatchPredictionStat | null
 }
 
 type LedgerEvent = { paramKey: string; points: number }
@@ -111,7 +112,7 @@ async function buildMatchDto(
   const pointsEarned = prediction
     ? await buildPointsEarned(prediction, match, roundSlug, ledgerEvents)
     : null
-  return toKoMatchDto(match, prediction, pointsEarned)
+  return toKoMatchDto(match, prediction, pointsEarned, match.predictionStat ?? null)
 }
 
 export async function findKoMatches(
@@ -133,6 +134,7 @@ export async function findKoMatches(
           homeTeam: true,
           awayTeam: true,
           koPredictions: { where: { participantId } },
+          predictionStat: true,
         },
       },
     },
@@ -303,6 +305,7 @@ export async function findKoMatch(matchId: string, participantId: string): Promi
       homeTeam: true,
       awayTeam: true,
       koPredictions: { where: { participantId } },
+      predictionStat: true,
     },
   })
 
@@ -327,5 +330,5 @@ export async function findKoMatch(matchId: string, participantId: string): Promi
     ? await buildPointsEarned(prediction, match, match.round.slug, ledgerEvents)
     : null
 
-  return toKoMatchDto(match, prediction, pointsEarned)
+  return toKoMatchDto(match, prediction, pointsEarned, match.predictionStat ?? null)
 }

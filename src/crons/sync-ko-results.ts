@@ -2,6 +2,15 @@ import { MatchStatus, RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
 import { persistKoMatchScoreEvents, persistPowerupKoMatchEvents } from '../services/score-calculation.service.js'
+import { computeAndPersistMatchStats } from '../services/match-stats.service.js'
+
+async function persistMatchStatsSafe(matchId: string): Promise<void> {
+  try {
+    await computeAndPersistMatchStats(matchId)
+  } catch (error) {
+    console.error(`[sync-ko-results] Error calculando stats del partido ${matchId}:`, (error as Error).message)
+  }
+}
 
 export async function syncKoResults(): Promise<void> {
   console.info('[sync-ko-results] Iniciando sincronización...')
@@ -76,6 +85,7 @@ export async function syncKoResults(): Promise<void> {
 
           await persistKoMatchScoreEvents(partido.id)
           await persistPowerupKoMatchEvents(partido.id)
+          await persistMatchStatsSafe(partido.id)
 
           console.info(
             `[sync-ko-results] Partido ${partido.id} (${partido.round.slug}) ` +
@@ -99,6 +109,7 @@ export async function syncKoResults(): Promise<void> {
               scoreAway: liveAway,
             },
           })
+          await persistMatchStatsSafe(partido.id)
           console.info(
             `[sync-ko-results] Partido ${partido.id} live: ${liveHome}-${liveAway}`,
           )
