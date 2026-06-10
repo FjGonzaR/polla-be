@@ -120,9 +120,21 @@ describe('sendPowerupGroupNotifications', () => {
     )
   })
 
-  it('darkHorseGroupNotifiedAt already set → no re-send', async () => {
+  it('darkHorseGroupNotifiedAt is null → sends (no dedup)', async () => {
     const participant = await buildParticipant()
     const { group, team } = await buildGroupWithStanding('E', 'Estonia', 1)
+    await buildPowerupForParticipant(participant.id, team.id, { darkHorseGroupNotifiedAt: undefined })
+
+    await sendPowerupGroupNotifications(group.id)
+
+    expect(mockSendWhatsappMessage).toHaveBeenCalledOnce()
+    const updated = await prisma.powerup.findFirst({ where: { participantId: participant.id } })
+    expect(updated!.darkHorseGroupNotifiedAt).not.toBeNull()
+  })
+
+  it('darkHorseGroupNotifiedAt already set → no re-send', async () => {
+    const participant = await buildParticipant()
+    const { group, team } = await buildGroupWithStanding('F', 'Finland', 1)
     await buildPowerupForParticipant(participant.id, team.id, { darkHorseGroupNotifiedAt: new Date() })
 
     await sendPowerupGroupNotifications(group.id)
