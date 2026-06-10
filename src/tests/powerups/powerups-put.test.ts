@@ -27,8 +27,8 @@ describe('PUT /powerups/predictions', () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.json()).toEqual({
-      darkHorse: { teamId: darkHorse.id, name: darkHorse.name, code: darkHorse.code, isTop8: false, flag: darkHorse.flag },
-      disappointment: { teamId: disappointment.id, name: disappointment.name, code: disappointment.code, isTop8: true, flag: disappointment.flag },
+      darkHorse: { teamId: darkHorse.id, name: darkHorse.name, code: darkHorse.code, isTop8: false, flag: darkHorse.flag, stats: { chosenPct: null } },
+      disappointment: { teamId: disappointment.id, name: disappointment.name, code: disappointment.code, isTop8: true, flag: disappointment.flag, stats: { chosenPct: null } },
     })
 
     const row = await prisma.powerup.findUnique({ where: { participantId: participant.id } })

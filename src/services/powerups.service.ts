@@ -9,8 +9,8 @@ import {
 } from '../mappers/powerup.mapper.js'
 
 const INCLUDE_TEAMS = {
-  darkHorseTeam: true,
-  disappointmentTeam: true,
+  darkHorseTeam: { include: { powerupStats: true } },
+  disappointmentTeam: { include: { powerupStats: true } },
 } as const
 
 async function validateTeams(darkHorseTeamId?: string, disappointmentTeamId?: string) {
