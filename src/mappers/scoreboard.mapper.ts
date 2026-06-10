@@ -49,20 +49,28 @@ export function toScoreboardEntryDto(
   }
 }
 
+export interface ProvisionalBreakdown {
+  groups: number
+  ko: number
+  darkHorse: number
+  disappointment: number
+}
+
 export function toScoreBreakdownDto(
   participant: { id: string; name: string },
   events: { paramKey: string; points: number }[],
   tripleUsesRemaining: number,
   prize: number | null,
+  provisional: ProvisionalBreakdown = { groups: 0, ko: 0, darkHorse: 0, disappointment: 0 },
 ): ScoreBreakdownDto {
   const sum = (keys: string[]) =>
     events.filter((e) => keys.includes(e.paramKey)).reduce((acc, e) => acc + e.points, 0)
 
-  const groups = sum(GROUP_PARAM_KEYS)
+  const groups = sum(GROUP_PARAM_KEYS) + provisional.groups
   const thirds = sum(THIRD_PARAM_KEYS)
-  const ko = sum(KO_PARAM_KEYS)
-  const darkHorse = sum(DARK_HORSE_PARAM_KEYS)
-  const disappointment = sum(DISAPPOINTMENT_PARAM_KEYS)
+  const ko = sum(KO_PARAM_KEYS) + provisional.ko
+  const darkHorse = sum(DARK_HORSE_PARAM_KEYS) + provisional.darkHorse
+  const disappointment = sum(DISAPPOINTMENT_PARAM_KEYS) + provisional.disappointment
 
   return {
     participant,

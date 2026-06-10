@@ -349,6 +349,33 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(body.total).toBe(8)
   })
 
+  it('group rung shows provisionally in breakdown before persistence (matches scoreboard)', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8, pts_disappointment_per_round: 5, scale_group: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group PB', label: 'X' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DHx', code: 'DHX', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DPx', code: 'DPX', groupId: grp.id } })
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 1, matchesPlayed: 3 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 2, matchesPlayed: 3 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    // No persistPowerupGroupEvents yet → values come from the provisional path.
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+    const body = res.json()
+    expect(body.breakdown.darkHorse).toBe(8) // 8 * scale_group(1)
+    expect(body.breakdown.disappointment).toBe(-5) // both qualified
+    expect(body.total).toBe(3) // 8 - 5
+
+    // Scoreboard total agrees with breakdown total
+    const sb = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = sb.json<{ data: { participant: { id: string }; total: number }[] }>().data.find((e) => e.participant.id === participant.id)
+    expect(entry!.total).toBe(3)
+  })
+
   it('dark horse 3rd: group rung only when selected as qualified third', async () => {
     await seedScoringParams({ pts_dark_horse_per_round: 8, scale_group: 1 })
     const { participant, cookie } = await createAuthenticatedParticipant()
