@@ -190,8 +190,9 @@ model Powerup {
   darkHorseTeam        Team        @relation("DarkHorse", fields: [darkHorseTeamId], references: [id])
   disappointmentTeamId String      @map("disappointment_team_id")
   disappointmentTeam   Team        @relation("Disappointment", fields: [disappointmentTeamId], references: [id])
-  createdAt            DateTime    @default(now()) @map("created_at")
-  updatedAt            DateTime    @updatedAt @map("updated_at")
+  darkHorseGroupNotifiedAt DateTime?   @map("dark_horse_group_notified_at")
+  createdAt                DateTime    @default(now()) @map("created_at")
+  updatedAt                DateTime    @updatedAt @map("updated_at")
 
   @@map("powerups")
 }

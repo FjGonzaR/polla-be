@@ -4,6 +4,7 @@ import {
   isGroupFinalized,
   persistGroupScoreEvents,
 } from '../services/score-calculation.service.js'
+import { sendPowerupGroupNotifications } from '../crons/powerup-group-notification.js'
 
 export async function syncStandings(): Promise<void> {
   console.info('[sync-standings] Iniciando sincronización...')
@@ -99,6 +100,7 @@ export async function syncStandings(): Promise<void> {
       const updatedStandings = await prisma.groupStanding.findMany({ where: { groupId: group.id } })
       if (isGroupFinalized(group, updatedStandings)) {
         await persistGroupScoreEvents(group.id)
+        await sendPowerupGroupNotifications(group.id)
       }
     }
 
