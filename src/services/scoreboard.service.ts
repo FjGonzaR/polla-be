@@ -25,9 +25,8 @@ export async function getScoreboard(): Promise<{ updatedAt: Date; data: Scoreboa
 
   const sorted = [...participants].sort(compareByScoreThenExact)
 
-  const data: ScoreboardEntryDto[] = []
+  const ranks: number[] = []
   let rank = 1
-
   for (let i = 0; i < sorted.length; i++) {
     if (i > 0) {
       const prev = sorted[i - 1]
@@ -36,12 +35,20 @@ export async function getScoreboard(): Promise<{ updatedAt: Date; data: Scoreboa
       const sameExact = (exactKoMap.get(prev.id) ?? 0) === (exactKoMap.get(curr.id) ?? 0)
       if (!samePts || !sameExact) rank = i + 1
     }
-
-    const p = sorted[i]
-    data.push(toScoreboardEntryDto(rank, p, Number(pointsMap.get(p.id) ?? 0)))
+    ranks.push(rank)
   }
 
-  return { updatedAt: new Date(), data }
+  const rankGroupSize = new Map<number, number>()
+  for (const r of ranks) {
+    rankGroupSize.set(r, (rankGroupSize.get(r) ?? 0) + 1)
+  }
+
+  const data: ScoreboardEntryDto[] = sorted.map((p, i) => {
+    const r = ranks[i]
+    return toScoreboardEntryDto(r, rankGroupSize.get(r) ?? 1, p, Number(pointsMap.get(p.id) ?? 0))
+  })
+
+  return { updatedAt: new Date(), data: data.slice(0, 10) }
 }
 
 export async function getScoreboardBreakdown(participantId: string): Promise<ScoreBreakdownDto> {

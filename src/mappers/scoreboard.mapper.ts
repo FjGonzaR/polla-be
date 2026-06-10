@@ -21,6 +21,14 @@ export interface ScoreBreakdownDto {
 
 const PRIZES: Record<number, number> = { 1: 700000, 2: 250000, 3: 50000 }
 
+function computeSharedPrize(rank: number, groupSize: number): number | null {
+  let sum = 0
+  for (let i = 0; i < groupSize; i++) {
+    sum += PRIZES[rank + i] ?? 0
+  }
+  return sum > 0 ? Math.round(sum / groupSize) : null
+}
+
 const GROUP_PARAM_KEYS = ['pts_group_position_exact', 'bonus_group_complete']
 const THIRD_PARAM_KEYS = ['pts_third_correct']
 const KO_PARAM_KEYS = ['pts_ko_advances', 'pts_ko_exact_score', 'mult_triple']
@@ -29,6 +37,7 @@ const DISAPPOINTMENT_PARAM_KEYS = ['pts_disappointment_per_round']
 
 export function toScoreboardEntryDto(
   rank: number,
+  tieGroupSize: number,
   participant: { id: string; name: string },
   total: number,
 ): ScoreboardEntryDto {
@@ -36,7 +45,7 @@ export function toScoreboardEntryDto(
     rank,
     participant,
     total,
-    prize: PRIZES[rank] ?? null,
+    prize: computeSharedPrize(rank, tieGroupSize),
   }
 }
 

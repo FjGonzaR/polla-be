@@ -157,6 +157,106 @@ describe('GET /scoreboard', () => {
     expect(data.every((e) => e.rank === 1)).toBe(true)
   })
 
+  it('2-way tie for 1st → prize splits (700K+250K)/2 = 475K each', async () => {
+    const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'A' })
+    const p2 = await buildParticipant({ name: 'B' })
+    const p3 = await buildParticipant({ name: 'C' })
+
+    await prisma.scoreEvent.createMany({
+      data: [
+        { participantId: p1.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 },
+        { participantId: p2.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 },
+        { participantId: p3.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 50 },
+      ],
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const { data } = res.json<{ data: { rank: number; prize: number | null }[] }>()
+
+    const tied = data.filter((e) => e.rank === 1)
+    expect(tied).toHaveLength(2)
+    expect(tied.every((e) => e.prize === 475000)).toBe(true) // (700K + 250K) / 2
+
+    const third = data.find((e) => e.rank === 3)
+    expect(third?.prize).toBe(50000)
+  })
+
+  it('2-way tie for 2nd → prize splits (250K+50K)/2 = 150K each', async () => {
+    const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'A' })
+    const p2 = await buildParticipant({ name: 'B' })
+    const p3 = await buildParticipant({ name: 'C' })
+
+    await prisma.scoreEvent.createMany({
+      data: [
+        { participantId: p1.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 200 },
+        { participantId: p2.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 },
+        { participantId: p3.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 },
+      ],
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const { data } = res.json<{ data: { rank: number; prize: number | null }[] }>()
+
+    expect(data[0].rank).toBe(1)
+    expect(data[0].prize).toBe(700000)
+
+    const tied = data.filter((e) => e.rank === 2)
+    expect(tied).toHaveLength(2)
+    expect(tied.every((e) => e.prize === 150000)).toBe(true) // (250K + 50K) / 2
+  })
+
+  it('tie outside top 3 → prize null', async () => {
+    const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'A' })
+    const p2 = await buildParticipant({ name: 'B' })
+    const p3 = await buildParticipant({ name: 'C' })
+    const p4 = await buildParticipant({ name: 'D' })
+
+    await prisma.scoreEvent.createMany({
+      data: [
+        { participantId: p1.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 300 },
+        { participantId: p2.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 200 },
+        { participantId: p3.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 },
+        { participantId: p4.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 },
+      ],
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const { data } = res.json<{ data: { rank: number; prize: number | null }[] }>()
+
+    const tied = data.filter((e) => e.rank === 3)
+    expect(tied).toHaveLength(2)
+    expect(tied.every((e) => e.prize === 25000)).toBe(true) // 50K / 2 = 25K
+  })
+
+  it('tie entirely outside prize positions (rank 4+) → prize null', async () => {
+    const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'A' })
+    const p2 = await buildParticipant({ name: 'B' })
+    const p3 = await buildParticipant({ name: 'C' })
+    const p4 = await buildParticipant({ name: 'D' })
+    const p5 = await buildParticipant({ name: 'E' })
+
+    await prisma.scoreEvent.createMany({
+      data: [
+        { participantId: p1.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 300 },
+        { participantId: p2.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 200 },
+        { participantId: p3.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 },
+        { participantId: p4.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 50 },
+        { participantId: p5.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 50 },
+      ],
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const { data } = res.json<{ data: { rank: number; prize: number | null }[] }>()
+
+    const tied = data.filter((e) => e.rank === 4)
+    expect(tied).toHaveLength(2)
+    expect(tied.every((e) => e.prize === null)).toBe(true)
+  })
+
   // ── scoring pipeline ────────────────────────────────────────────────────
 
   it('group predictions: 4/4 exact → pts_group_position_exact*4 + bonus via persistGroupScoreEvents', async () => {
