@@ -136,14 +136,35 @@ async function buildKoEvents(participantId: string): Promise<ScoreEventInput[]> 
   return events
 }
 
+// A team passed the group phase if it finished 1st/2nd or was selected as a best third.
+function passedGroupPhase(standing: { realPosition: number | null; qualifiedAsThird: boolean }): boolean {
+  return standing.qualifiedAsThird || standing.realPosition === 1 || standing.realPosition === 2
+}
+
 async function buildPowerupEvents(participantId: string): Promise<ScoreEventInput[]> {
   const powerup = await prisma.powerup.findUnique({ where: { participantId } })
   if (!powerup) return []
 
-  const [ptsDarkHorse, ptsDisappointment] = await Promise.all([
+  const [ptsDarkHorse, ptsDisappointment, scaleGroup, standings] = await Promise.all([
     getParam('pts_dark_horse_per_round'),
     getParam('pts_disappointment_per_round'),
+    getParam('scale_group'),
+    prisma.groupStanding.findMany({
+      where: { teamId: { in: [powerup.darkHorseTeamId, powerup.disappointmentTeamId] } },
+    }),
   ])
+
+  const events: ScoreEventInput[] = []
+
+  // Group rung: powerup teams that qualified from the group phase.
+  const darkHorseStanding = standings.find((s) => s.teamId === powerup.darkHorseTeamId)
+  if (darkHorseStanding && passedGroupPhase(darkHorseStanding) && ptsDarkHorse > 0) {
+    events.push({ participantId, paramKey: 'pts_dark_horse_group', matchId: null, groupId: null, roundSlug: null, points: Math.round(ptsDarkHorse * scaleGroup) })
+  }
+  const disappointmentStanding = standings.find((s) => s.teamId === powerup.disappointmentTeamId)
+  if (disappointmentStanding && passedGroupPhase(disappointmentStanding) && ptsDisappointment > 0) {
+    events.push({ participantId, paramKey: 'pts_disappointment_group', matchId: null, groupId: null, roundSlug: null, points: -Math.round(ptsDisappointment * scaleGroup) })
+  }
 
   const koMatches = await prisma.match.findMany({
     where: {
@@ -152,8 +173,6 @@ async function buildPowerupEvents(participantId: string): Promise<ScoreEventInpu
     },
     include: { round: true },
   })
-
-  const events: ScoreEventInput[] = []
 
   for (const match of koMatches) {
     const roundSlug = match.round.slug
@@ -341,6 +360,33 @@ export async function persistThirdScoreEvents(): Promise<void> {
 
   await prisma.$transaction([
     prisma.scoreEvent.deleteMany({ where: { paramKey: 'pts_third_correct' } }),
+    prisma.scoreEvent.createMany({ data: events }),
+  ])
+}
+
+export async function persistPowerupGroupEvents(): Promise<void> {
+  const [ptsDarkHorse, ptsDisappointment, scaleGroup, powerups, standings] = await Promise.all([
+    getParam('pts_dark_horse_per_round'),
+    getParam('pts_disappointment_per_round'),
+    getParam('scale_group'),
+    prisma.powerup.findMany(),
+    prisma.groupStanding.findMany({ select: { teamId: true, realPosition: true, qualifiedAsThird: true } }),
+  ])
+
+  const qualifiedTeamIds = new Set(standings.filter(passedGroupPhase).map((s) => s.teamId))
+
+  const events: ScoreEventInput[] = []
+  for (const powerup of powerups) {
+    if (qualifiedTeamIds.has(powerup.darkHorseTeamId) && ptsDarkHorse > 0) {
+      events.push({ participantId: powerup.participantId, paramKey: 'pts_dark_horse_group', matchId: null, groupId: null, roundSlug: null, points: Math.round(ptsDarkHorse * scaleGroup) })
+    }
+    if (qualifiedTeamIds.has(powerup.disappointmentTeamId) && ptsDisappointment > 0) {
+      events.push({ participantId: powerup.participantId, paramKey: 'pts_disappointment_group', matchId: null, groupId: null, roundSlug: null, points: -Math.round(ptsDisappointment * scaleGroup) })
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.scoreEvent.deleteMany({ where: { paramKey: { in: ['pts_dark_horse_group', 'pts_disappointment_group'] } } }),
     prisma.scoreEvent.createMany({ data: events }),
   ])
 }

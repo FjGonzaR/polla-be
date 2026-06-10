@@ -99,6 +99,59 @@ async function computeProvisionalKoPoints(
   return result
 }
 
+// Provisional powerup group-phase points: shown on-the-fly once standings are consolidated
+// (1st/2nd or selected best third) but before persistPowerupGroupEvents has run. Skipped
+// per (participant, paramKey) once persisted, so it never double-counts.
+async function computeProvisionalPowerupGroupPoints(
+  participants: { id: string }[],
+): Promise<Map<string, number>> {
+  const result = new Map<string, number>()
+
+  const standings = await prisma.groupStanding.findMany({
+    select: { teamId: true, realPosition: true, qualifiedAsThird: true },
+  })
+  const qualifiedTeamIds = new Set(
+    standings
+      .filter((s) => s.qualifiedAsThird || s.realPosition === 1 || s.realPosition === 2)
+      .map((s) => s.teamId),
+  )
+  if (qualifiedTeamIds.size === 0) return result
+
+  const [powerups, persisted, ptsDarkHorse, ptsDisappointment, scaleGroup] = await Promise.all([
+    prisma.powerup.findMany(),
+    prisma.scoreEvent.findMany({
+      where: { paramKey: { in: ['pts_dark_horse_group', 'pts_disappointment_group'] } },
+      select: { participantId: true, paramKey: true },
+    }),
+    getParam('pts_dark_horse_per_round'),
+    getParam('pts_disappointment_per_round'),
+    getParam('scale_group'),
+  ])
+
+  const participantIds = new Set(participants.map((p) => p.id))
+  const persistedKeys = new Set(persisted.map((e) => `${e.participantId}:${e.paramKey}`))
+
+  for (const powerup of powerups) {
+    if (!participantIds.has(powerup.participantId)) continue
+    let pts = 0
+    if (
+      qualifiedTeamIds.has(powerup.darkHorseTeamId) &&
+      !persistedKeys.has(`${powerup.participantId}:pts_dark_horse_group`)
+    ) {
+      pts += Math.round(ptsDarkHorse * scaleGroup)
+    }
+    if (
+      qualifiedTeamIds.has(powerup.disappointmentTeamId) &&
+      !persistedKeys.has(`${powerup.participantId}:pts_disappointment_group`)
+    ) {
+      pts -= Math.round(ptsDisappointment * scaleGroup)
+    }
+    if (pts !== 0) result.set(powerup.participantId, pts)
+  }
+
+  return result
+}
+
 export async function getScoreboard(viewerParticipantId: string): Promise<{ updatedAt: Date; data: ScoreboardEntryDto[] }> {
   const [participants, scoreGroups, exactKoGroups] = await Promise.all([
     prisma.participant.findMany({ select: { id: true, name: true }, orderBy: { name: 'asc' } }),
@@ -162,13 +215,15 @@ export async function getScoreboard(viewerParticipantId: string): Promise<{ upda
   }
 
   const provisionalKoPointsMap = await computeProvisionalKoPoints(participants)
+  const provisionalPowerupGroupMap = await computeProvisionalPowerupGroupPoints(participants)
 
   const pointsMap = new Map(
     participants.map((p) => [
       p.id,
       (persistedPointsMap.get(p.id) ?? 0) +
         (provisionalPointsMap.get(p.id) ?? 0) +
-        (provisionalKoPointsMap.get(p.id) ?? 0),
+        (provisionalKoPointsMap.get(p.id) ?? 0) +
+        (provisionalPowerupGroupMap.get(p.id) ?? 0),
     ]),
   )
 

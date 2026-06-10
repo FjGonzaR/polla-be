@@ -4,6 +4,7 @@ import { AppError } from '../lib/errors.js'
 import {
   persistKoMatchScoreEvents,
   persistPowerupKoMatchEvents,
+  persistPowerupGroupEvents,
   persistThirdScoreEvents,
 } from './score-calculation.service.js'
 import {
@@ -81,6 +82,7 @@ export async function setQualifiedThirds(teamIds: string[]): Promise<void> {
   )
 
   await persistThirdScoreEvents()
+  await persistPowerupGroupEvents()
 }
 
 export async function updateScoringParam(key: string, value: number): Promise<ScoringParamDto> {

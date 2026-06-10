@@ -7,6 +7,7 @@ import {
   persistGroupScoreEvents,
   persistKoMatchScoreEvents,
   persistPowerupKoMatchEvents,
+  persistPowerupGroupEvents,
 } from '../../services/score-calculation.service.js'
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -21,6 +22,7 @@ async function seedScoringParams(overrides: Record<string, number> = {}) {
     mult_triple: 3,
     pts_dark_horse_per_round: 8,
     pts_disappointment_per_round: 5,
+    scale_group: 1,
     scale_r32: 1,
     scale_r16: 1.5,
     scale_qf: 2,
@@ -506,6 +508,33 @@ describe('GET /scoreboard', () => {
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
     const entry = res.json<{ data: { total: number }[] }>().data[0]
     expect(entry.total).toBe(8)
+  })
+
+  it('dark horse qualified, group rung not yet persisted → provisional, then unchanged after persist', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8, scale_group: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group PG', label: 'Y' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DHy', code: 'DHY', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DPy', code: 'DPY', groupId: grp.id } })
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 1, matchesPlayed: 3 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 4, matchesPlayed: 3 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    const server = await buildServer()
+
+    // provisional (no score_event persisted yet)
+    let res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    let entry = res.json<{ data: { participant: { id: string }; total: number }[] }>().data.find((e) => e.participant.id === participant.id)
+    expect(entry!.total).toBe(8)
+
+    // after persistence → identical total, no double count
+    await persistPowerupGroupEvents()
+    res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    entry = res.json<{ data: { participant: { id: string }; total: number }[] }>().data.find((e) => e.participant.id === participant.id)
+    expect(entry!.total).toBe(8)
   })
 
   // ── provisional KO live scoring ─────────────────────────────────────────

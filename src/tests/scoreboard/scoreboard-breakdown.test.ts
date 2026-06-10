@@ -7,6 +7,8 @@ import {
   persistGroupScoreEvents,
   persistKoMatchScoreEvents,
   persistPowerupKoMatchEvents,
+  persistPowerupGroupEvents,
+  recalculateParticipantScores,
 } from '../../services/score-calculation.service.js'
 
 async function seedScoringParams(overrides: Record<string, number> = {}) {
@@ -19,6 +21,7 @@ async function seedScoringParams(overrides: Record<string, number> = {}) {
     mult_triple: 3,
     pts_dark_horse_per_round: 8,
     pts_disappointment_per_round: 5,
+    scale_group: 1,
     scale_r32: 1,
     scale_r16: 1.5,
     scale_qf: 2,
@@ -320,6 +323,130 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(body.breakdown.darkHorse).toBe(8)
     expect(body.breakdown.disappointment).toBe(0)
     expect(body.total).toBe(8)
+  })
+
+  it('dark horse qualifies (1st) → breakdown.darkHorse = base * scale_group', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8, pts_disappointment_per_round: 5, scale_group: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group G1', label: 'G' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DH1', code: 'DH1', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DP1', code: 'DP1', groupId: grp.id } })
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 1, matchesPlayed: 3 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 4, matchesPlayed: 3 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    await persistPowerupGroupEvents()
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+
+    const body = res.json()
+    expect(body.breakdown.darkHorse).toBe(8) // 8 * scale_group(1)
+    expect(body.breakdown.disappointment).toBe(0) // finished 4th → did not qualify
+    expect(body.total).toBe(8)
+  })
+
+  it('dark horse 3rd: group rung only when selected as qualified third', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8, scale_group: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group G2', label: 'H' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DH2', code: 'DH2', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DP2', code: 'DP2', groupId: grp.id } })
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 3, qualifiedAsThird: false, matchesPlayed: 3 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 1, matchesPlayed: 3 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    await persistPowerupGroupEvents()
+    const server = await buildServer()
+    let res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+    expect(res.json().breakdown.darkHorse).toBe(0) // 3rd, not selected → no rung
+
+    await prisma.groupStanding.update({ where: { teamId: darkHorse.id }, data: { qualifiedAsThird: true } })
+    await persistPowerupGroupEvents()
+    res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+    expect(res.json().breakdown.darkHorse).toBe(8) // now a qualified third → rung awarded
+  })
+
+  it('disappointment qualifies → breakdown.disappointment = -(base * scale_group)', async () => {
+    await seedScoringParams({ pts_disappointment_per_round: 5, scale_group: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group G3', label: 'I' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DH3', code: 'DH3', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DP3', code: 'DP3', groupId: grp.id } })
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 4, matchesPlayed: 3 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 2, matchesPlayed: 3 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    await persistPowerupGroupEvents()
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+
+    const body = res.json()
+    expect(body.breakdown.disappointment).toBe(-5)
+    expect(body.breakdown.darkHorse).toBe(0)
+    expect(body.total).toBe(-5)
+  })
+
+  it('dark horse qualifies + wins R32 → group rung + advance rung', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8, scale_group: 1, scale_r32: 2 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group G4', label: 'J' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DH4', code: 'DH4', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DP4', code: 'DP4', groupId: grp.id } })
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 2, matchesPlayed: 3 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 4, matchesPlayed: 3 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    const round = await prisma.round.create({ data: { name: 'R32', slug: 'R32', order: 1, matchCount: 16 } })
+    const match = await prisma.match.create({
+      data: {
+        roundId: round.id, matchNumber: 1, scheduledAt: new Date('2026-07-01'),
+        homeTeamId: darkHorse.id, awayTeamId: disappoint.id,
+        winnerTeamId: darkHorse.id, status: 'FINISHED',
+      },
+    })
+
+    await persistPowerupGroupEvents()
+    await persistPowerupKoMatchEvents(match.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+
+    // group rung 8*1 + R32 advance 8*2 = 24
+    expect(res.json().breakdown.darkHorse).toBe(24)
+  })
+
+  it('recalculateParticipantScores reproduces the group rung', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8, scale_group: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group G5', label: 'K' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DH5', code: 'DH5', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DP5', code: 'DP5', groupId: grp.id } })
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 1, matchesPlayed: 3 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 3, qualifiedAsThird: false, matchesPlayed: 3 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    await recalculateParticipantScores(participant.id)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+    expect(res.json().breakdown.darkHorse).toBe(8)
+    expect(res.json().breakdown.disappointment).toBe(0)
   })
 
   it('disappointment team wins → breakdown.disappointment is negative', async () => {

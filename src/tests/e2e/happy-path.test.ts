@@ -423,8 +423,10 @@ describe('E2E: user happy path — group phase', () => {
     //       = (4×3 + 5) × 12 groups = 17 × 12 = 204
     // + thirds: all 12 pos3 teams have identical stats so 8 qualify;
     //   user selected thirds from groups A–H → all 8 qualify → 8 × pts_third_correct(2) = 16
-    // Total: 204 + 16 = 220
-    const EXPECTED_USER_TOTAL = 220
+    // + powerup group rung (both qualified from groups): dark horse MEX +pts_dark_horse_per_round(8)
+    //   × scale_group(1); disappointment BRA −pts_disappointment_per_round(5) × scale_group(1) → net +3
+    // Total: 204 + 16 + 3 = 223
+    const EXPECTED_USER_TOTAL = 223
     // Friend: only pos1 correct per group × pts_group_position_exact(3), no bonus
     //         = 3 × 12 groups = 36
     const EXPECTED_FRIEND_TOTAL = 36
