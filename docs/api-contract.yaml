@@ -1443,8 +1443,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/MyPowerups'
               example:
-                darkHorse:      { teamId: "uuid-col", name: "Colombia", code: "COL", isTop8: false, flag: "https://flagcdn.com/w80/co.png", pct: null }
-                disappointment: { teamId: "uuid-bra", name: "Brasil",   code: "BRA", isTop8: true,  flag: "https://flagcdn.com/w80/br.png", pct: null }
+                darkHorse:      { teamId: "uuid-col", name: "Colombia", code: "COL", isTop8: false, flag: "https://flagcdn.com/w80/co.png", stats: { chosenPct: null } }
+                disappointment: { teamId: "uuid-bra", name: "Brasil",   code: "BRA", isTop8: true,  flag: "https://flagcdn.com/w80/br.png", stats: { chosenPct: null } }
         '400':
           description: Validación de elegibilidad fallida
           content:
@@ -1508,8 +1508,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/MyPowerups'
               example:
-                darkHorse:      { teamId: "uuid-mar", name: "Marruecos", code: "MAR", isTop8: false, flag: "https://flagcdn.com/w80/ma.png", pct: null }
-                disappointment: { teamId: "uuid-fra", name: "Francia",   code: "FRA", isTop8: true,  flag: "https://flagcdn.com/w80/fr.png", pct: null }
+                darkHorse:      { teamId: "uuid-mar", name: "Marruecos", code: "MAR", isTop8: false, flag: "https://flagcdn.com/w80/ma.png", stats: { chosenPct: null } }
+                disappointment: { teamId: "uuid-fra", name: "Francia",   code: "FRA", isTop8: true,  flag: "https://flagcdn.com/w80/fr.png", stats: { chosenPct: null } }
         '400':
           description: Validación de elegibilidad fallida
           content:
@@ -1556,8 +1556,8 @@ paths:
               examples:
                 con_powerups:
                   value:
-                    darkHorse:      { teamId: "uuid-col", name: "Colombia", code: "COL", isTop8: false, flag: "https://flagcdn.com/w80/co.png", pct: 20.0 }
-                    disappointment: { teamId: "uuid-bra", name: "Brasil",   code: "BRA", isTop8: true,  flag: "https://flagcdn.com/w80/br.png", pct: 35.0 }
+                    darkHorse:      { teamId: "uuid-col", name: "Colombia", code: "COL", isTop8: false, flag: "https://flagcdn.com/w80/co.png", stats: { chosenPct: 20.0 } }
+                    disappointment: { teamId: "uuid-bra", name: "Brasil",   code: "BRA", isTop8: true,  flag: "https://flagcdn.com/w80/br.png", stats: { chosenPct: 35.0 } }
                 sin_powerups:
                   value:
                     darkHorse:      null
@@ -2148,22 +2148,26 @@ components:
     PowerupTeam:
       type: object
       description: Equipo seleccionado como powerup. Null si aún no se ha guardado.
-      required: [teamId, name, code, isTop8, pct]
+      required: [teamId, name, code, isTop8, stats]
       properties:
         teamId: { type: string, format: uuid }
         name:   { type: string }
         code:   { type: string }
         isTop8: { type: boolean }
         flag:   { type: [string, 'null'], description: "URL de la bandera del equipo" }
-        pct:
-          description: >
-            % de participantes que eligieron este equipo para el mismo powerup (caballo negro o
-            decepción según el contexto). Null hasta que el cron calculate-powerup-stats corra el
-            11 de junio a las 2PM Colombia (al inicio del torneo).
-          oneOf:
-            - type: number
-              description: "Porcentaje (0.0–100.0)"
-            - type: 'null'
+        stats:
+          type: object
+          required: [chosenPct]
+          properties:
+            chosenPct:
+              description: >
+                % de participantes que eligieron este equipo para el mismo powerup (caballo negro o
+                decepción según el contexto). Null hasta que el cron calculate-powerup-stats corra
+                al inicio del torneo.
+              oneOf:
+                - type: number
+                  description: "Porcentaje (0.0–100.0)"
+                - type: 'null'
 
     MyPowerups:
       type: object

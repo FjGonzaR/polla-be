@@ -1,3 +1,4 @@
+import { PowerupType } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 
 export async function calculatePowerupStats(): Promise<void> {
@@ -32,9 +33,9 @@ export async function calculatePowerupStats(): Promise<void> {
     for (const [teamId, count] of darkHorseCounts) {
       const pct = parseFloat(((count / totalParticipants) * 100).toFixed(2))
       await prisma.powerupStat.upsert({
-        where: { teamId_type: { teamId, type: 'DARK_HORSE' } },
+        where: { teamId_type: { teamId, type: PowerupType.DARK_HORSE } },
         update: { pct },
-        create: { teamId, type: 'DARK_HORSE', pct },
+        create: { teamId, type: PowerupType.DARK_HORSE, pct },
       })
       upserted++
     }
@@ -42,9 +43,9 @@ export async function calculatePowerupStats(): Promise<void> {
     for (const [teamId, count] of disappointmentCounts) {
       const pct = parseFloat(((count / totalParticipants) * 100).toFixed(2))
       await prisma.powerupStat.upsert({
-        where: { teamId_type: { teamId, type: 'DISAPPOINTMENT' } },
+        where: { teamId_type: { teamId, type: PowerupType.DISAPPOINTMENT } },
         update: { pct },
-        create: { teamId, type: 'DISAPPOINTMENT', pct },
+        create: { teamId, type: PowerupType.DISAPPOINTMENT, pct },
       })
       upserted++
     }

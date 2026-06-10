@@ -25,8 +25,8 @@ describe('GET /powerups/predictions/me', () => {
     expect(body.darkHorse.flag).toBe('https://flagcdn.com/w80/xx.png')
     expect(body.disappointment.isTop8).toBe(true)
     expect(body.disappointment.flag).toBe('https://flagcdn.com/w80/xx.png')
-    expect(body.darkHorse.pct).toBeNull()
-    expect(body.disappointment.pct).toBeNull()
+    expect(body.darkHorse.stats.chosenPct).toBeNull()
+    expect(body.disappointment.stats.chosenPct).toBeNull()
   })
 
   it('returns correct pct after cron runs', async () => {
@@ -52,8 +52,8 @@ describe('GET /powerups/predictions/me', () => {
 
     expect(res.statusCode).toBe(200)
     const body = res.json()
-    expect(body.darkHorse.pct).toBe(100)
-    expect(body.disappointment.pct).toBe(100)
+    expect(body.darkHorse.stats.chosenPct).toBe(100)
+    expect(body.disappointment.stats.chosenPct).toBe(100)
   })
 
   it('returns nulls when no powerups exist', async () => {

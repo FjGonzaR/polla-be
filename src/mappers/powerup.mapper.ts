@@ -1,4 +1,5 @@
-import type { Powerup, PowerupStat, PowerupType, Team, Participant } from '@prisma/client'
+import { PowerupType } from '@prisma/client'
+import type { Powerup, PowerupStat, Team, Participant } from '@prisma/client'
 
 export interface PowerupTeamDto {
   teamId: string
@@ -6,7 +7,7 @@ export interface PowerupTeamDto {
   code: string
   isTop8: boolean
   flag: string | null
-  pct: number | null
+  stats: { chosenPct: number | null }
 }
 
 export interface MyPowerupsDto {
@@ -31,15 +32,15 @@ function toPowerupTeamDto(team: TeamWithStats, type: PowerupType): PowerupTeamDt
     code: team.code,
     isTop8: team.isTop8,
     flag: team.flag,
-    pct: stat?.pct ?? null,
+    stats: { chosenPct: stat?.pct ?? null },
   }
 }
 
 export function toMyPowerupsDto(powerup: PowerupWithTeams | null): MyPowerupsDto {
   if (!powerup) return { darkHorse: null, disappointment: null }
   return {
-    darkHorse: toPowerupTeamDto(powerup.darkHorseTeam, 'DARK_HORSE'),
-    disappointment: toPowerupTeamDto(powerup.disappointmentTeam, 'DISAPPOINTMENT'),
+    darkHorse: toPowerupTeamDto(powerup.darkHorseTeam, PowerupType.DARK_HORSE),
+    disappointment: toPowerupTeamDto(powerup.disappointmentTeam, PowerupType.DISAPPOINTMENT),
   }
 }
 
@@ -49,7 +50,7 @@ export function toFriendPowerupsDto(
 ): FriendPowerupsDto {
   return {
     participant: { id: participant.id, name: participant.name },
-    darkHorse: powerup ? toPowerupTeamDto(powerup.darkHorseTeam, 'DARK_HORSE') : null,
-    disappointment: powerup ? toPowerupTeamDto(powerup.disappointmentTeam, 'DISAPPOINTMENT') : null,
+    darkHorse: powerup ? toPowerupTeamDto(powerup.darkHorseTeam, PowerupType.DARK_HORSE) : null,
+    disappointment: powerup ? toPowerupTeamDto(powerup.disappointmentTeam, PowerupType.DISAPPOINTMENT) : null,
   }
 }
