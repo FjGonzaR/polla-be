@@ -49,7 +49,7 @@ export async function syncStandings(): Promise<void> {
           gf: parseInt(teamExterno.gf),
           ga: parseInt(teamExterno.ga),
           gd: parseInt(teamExterno.gd),
-          mp: parseInt(teamExterno.mp),
+          mp: parseInt(teamExterno.w) + parseInt(teamExterno.l) + parseInt(teamExterno.d),
         })
       }
 

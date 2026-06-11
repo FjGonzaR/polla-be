@@ -17,7 +17,7 @@ import { syncStandings } from "./crons/sync-standings.js";
 import { syncKoResults } from "./crons/sync-ko-results.js";
 import { sendWhatsappReminders } from "./crons/whatsapp-reminder.js";
 import { sendGroupPhaseReminder } from "./crons/group-phase-reminder.js";
-import { calculateGroupStats } from "./crons/calculate-group-stats.js"
+import { calculateGroupStats } from "./crons/calculate-group-stats.js";
 import { calculatePowerupStats } from "./crons/calculate-powerup-stats.js";
 import { AppError } from "./lib/errors.js";
 
@@ -57,7 +57,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     syncKoResults();
 
     // sync-standings: every 15 min
-    cron.schedule("*/15 * * * *", syncStandings);
+    cron.schedule("*/5 * * * *", syncStandings);
 
     // sync-ko-results: cada 30 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
     cron.schedule("*/30 17-23,0-6 * * *", syncKoResults);

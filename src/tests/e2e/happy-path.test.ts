@@ -154,7 +154,7 @@ const GROUPS_DATA = [
 
 function apiStanding(
   label: string,
-  teams: Array<{ extId: string; pts: number; gf: number; ga: number; mp: number }>,
+  teams: Array<{ extId: string; pts: number; gf: number; ga: number; w: number; l: number; d: number }>,
 ): WorldCupStanding {
   return {
     _id: `ext-group-${label.toLowerCase()}`,
@@ -165,7 +165,10 @@ function apiStanding(
       gf: String(t.gf),
       ga: String(t.ga),
       gd: String(t.gf - t.ga),
-      mp: String(t.mp),
+      mp: '0',
+      w: String(t.w),
+      l: String(t.l),
+      d: String(t.d),
     })),
   }
 }
@@ -235,7 +238,9 @@ function buildApiStandings(
         pts: (3 - i) * 3,
         gf: (3 - i) * 2 + 1,
         ga: i + 1,
-        mp: 3,
+        w: 3 - i,
+        l: i,
+        d: 0,
       })),
     ),
   )

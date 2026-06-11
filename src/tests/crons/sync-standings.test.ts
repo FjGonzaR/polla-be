@@ -33,7 +33,7 @@ async function buildGroupWithTeams(
 
 function apiStanding(
   name: string,
-  teams: Array<{ extId: string; pts: number; gf: number; ga: number; mp: number }>,
+  teams: Array<{ extId: string; pts: number; gf: number; ga: number; w: number; l: number; d: number }>,
 ): WorldCupStanding {
   return {
     _id: `ext-group-${name.toLowerCase()}`,
@@ -44,7 +44,10 @@ function apiStanding(
       gf: String(t.gf),
       ga: String(t.ga),
       gd: String(t.gf - t.ga),
-      mp: String(t.mp),
+      mp: '0',
+      w: String(t.w),
+      l: String(t.l),
+      d: String(t.d),
     })),
   }
 }
@@ -59,10 +62,10 @@ describe('syncStandings', () => {
 
     mockGetStandings.mockResolvedValue([
       apiStanding('A', [
-        { extId: 'ext-a3', pts: 3, gf: 2, ga: 4, mp: 3 },
-        { extId: 'ext-a1', pts: 9, gf: 7, ga: 2, mp: 3 },
-        { extId: 'ext-a4', pts: 0, gf: 1, ga: 5, mp: 3 },
-        { extId: 'ext-a2', pts: 6, gf: 4, ga: 3, mp: 3 },
+        { extId: 'ext-a3', pts: 3, gf: 2, ga: 4, w: 1, l: 2, d: 0 },
+        { extId: 'ext-a1', pts: 7, gf: 7, ga: 2, w: 2, l: 0, d: 1 },
+        { extId: 'ext-a4', pts: 0, gf: 1, ga: 5, w: 0, l: 3, d: 0 },
+        { extId: 'ext-a2', pts: 4, gf: 4, ga: 3, w: 1, l: 1, d: 1 },
       ]),
     ])
 
@@ -77,7 +80,7 @@ describe('syncStandings', () => {
     expect(standings).toHaveLength(4)
     expect(standings[0].team.externalTeamId).toBe('ext-a1')
     expect(standings[0].realPosition).toBe(1)
-    expect(standings[0].pts).toBe(9)
+    expect(standings[0].pts).toBe(7)
     expect(standings[0].goalsFor).toBe(7)
     expect(standings[0].matchesPlayed).toBe(3)
     expect(standings[1].team.externalTeamId).toBe('ext-a2')
@@ -91,10 +94,10 @@ describe('syncStandings', () => {
   it('group label not found in DB → no standings upserted', async () => {
     mockGetStandings.mockResolvedValue([
       apiStanding('Z', [
-        { extId: 'ext-z1', pts: 9, gf: 7, ga: 2, mp: 3 },
-        { extId: 'ext-z2', pts: 6, gf: 4, ga: 3, mp: 3 },
-        { extId: 'ext-z3', pts: 3, gf: 2, ga: 4, mp: 3 },
-        { extId: 'ext-z4', pts: 0, gf: 1, ga: 5, mp: 3 },
+        { extId: 'ext-z1', pts: 7, gf: 7, ga: 2, w: 2, l: 0, d: 1 },
+        { extId: 'ext-z2', pts: 4, gf: 4, ga: 3, w: 1, l: 1, d: 1 },
+        { extId: 'ext-z3', pts: 3, gf: 2, ga: 4, w: 1, l: 2, d: 0 },
+        { extId: 'ext-z4', pts: 0, gf: 1, ga: 5, w: 0, l: 3, d: 0 },
       ]),
     ])
 
@@ -109,10 +112,10 @@ describe('syncStandings', () => {
 
     mockGetStandings.mockResolvedValue([
       apiStanding('A', [
-        { extId: 'ext-a1', pts: 9, gf: 7, ga: 2, mp: 3 },
-        { extId: 'ext-a2', pts: 6, gf: 4, ga: 3, mp: 3 },
-        { extId: 'ext-a3', pts: 3, gf: 2, ga: 4, mp: 3 },
-        { extId: 'ext-unknown', pts: 0, gf: 1, ga: 5, mp: 3 },
+        { extId: 'ext-a1', pts: 7, gf: 7, ga: 2, w: 2, l: 0, d: 1 },
+        { extId: 'ext-a2', pts: 4, gf: 4, ga: 3, w: 1, l: 1, d: 1 },
+        { extId: 'ext-a3', pts: 3, gf: 2, ga: 4, w: 1, l: 2, d: 0 },
+        { extId: 'ext-unknown', pts: 0, gf: 1, ga: 5, w: 0, l: 3, d: 0 },
       ]),
     ])
 
@@ -145,10 +148,10 @@ describe('syncStandings', () => {
     // API returns teams sorted so t1→pos1, t2→pos2, t3→pos3, t4→pos4
     mockGetStandings.mockResolvedValue([
       apiStanding('A', [
-        { extId: 'ext-a1', pts: 9, gf: 7, ga: 2, mp: 3 },
-        { extId: 'ext-a2', pts: 6, gf: 4, ga: 3, mp: 3 },
-        { extId: 'ext-a3', pts: 3, gf: 2, ga: 4, mp: 3 },
-        { extId: 'ext-a4', pts: 0, gf: 1, ga: 5, mp: 3 },
+        { extId: 'ext-a1', pts: 7, gf: 7, ga: 2, w: 2, l: 0, d: 1 },
+        { extId: 'ext-a2', pts: 4, gf: 4, ga: 3, w: 1, l: 1, d: 1 },
+        { extId: 'ext-a3', pts: 3, gf: 2, ga: 4, w: 1, l: 2, d: 0 },
+        { extId: 'ext-a4', pts: 0, gf: 1, ga: 5, w: 0, l: 3, d: 0 },
       ]),
     ])
 
@@ -176,10 +179,10 @@ describe('syncStandings', () => {
 
     mockGetStandings.mockResolvedValue([
       apiStanding('A', [
-        { extId: 'ext-a1', pts: 9, gf: 7, ga: 2, mp: 3 },
-        { extId: 'ext-a2', pts: 6, gf: 4, ga: 3, mp: 3 },
-        { extId: 'ext-a3', pts: 3, gf: 2, ga: 4, mp: 3 },
-        { extId: 'ext-a4', pts: 0, gf: 1, ga: 5, mp: 3 },
+        { extId: 'ext-a1', pts: 7, gf: 7, ga: 2, w: 2, l: 0, d: 1 },
+        { extId: 'ext-a2', pts: 4, gf: 4, ga: 3, w: 1, l: 1, d: 1 },
+        { extId: 'ext-a3', pts: 3, gf: 2, ga: 4, w: 1, l: 2, d: 0 },
+        { extId: 'ext-a4', pts: 0, gf: 1, ga: 5, w: 0, l: 3, d: 0 },
       ]),
     ])
 

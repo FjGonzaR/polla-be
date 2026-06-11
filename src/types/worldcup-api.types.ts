@@ -5,6 +5,9 @@ export interface WorldCupStandingTeam {
   ga: string
   gd: string
   mp: string
+  w: string
+  l: string
+  d: string
 }
 
 export interface WorldCupStanding {
