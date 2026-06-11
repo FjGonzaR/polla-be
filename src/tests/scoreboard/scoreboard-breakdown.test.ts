@@ -349,6 +349,28 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(body.total).toBe(8)
   })
 
+  it('disappointment team at realPosition=1 with matchesPlayed=0 (pre-tournament standings) → disappointment = 0', async () => {
+    await seedScoringParams({ pts_disappointment_per_round: 5, pts_dark_horse_per_round: 8, scale_group: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group PT', label: 'T' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DHt', code: 'DHT', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DPt', code: 'DPT', groupId: grp.id } })
+    // sync-standings assigns realPosition before any match is played
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 3, matchesPlayed: 0 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 1, matchesPlayed: 0 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+    const body = res.json()
+    expect(body.breakdown.disappointment).toBe(0)
+    expect(body.breakdown.darkHorse).toBe(0)
+    expect(body.total).toBe(0)
+  })
+
   it('group rung shows provisionally in breakdown before persistence (matches scoreboard)', async () => {
     await seedScoringParams({ pts_dark_horse_per_round: 8, pts_disappointment_per_round: 5, scale_group: 1 })
     const { participant, cookie } = await createAuthenticatedParticipant()

@@ -127,13 +127,17 @@ async function computeProvisionalPowerupGroupPoints(
   >();
 
   const standings = await prisma.groupStanding.findMany({
-    select: { teamId: true, realPosition: true, qualifiedAsThird: true },
+    select: { teamId: true, realPosition: true, qualifiedAsThird: true, matchesPlayed: true, groupId: true },
   });
+  const groupsWithMatches = new Set(
+    standings.filter((s) => s.matchesPlayed > 0).map((s) => s.groupId),
+  );
   const qualifiedTeamIds = new Set(
     standings
       .filter(
         (s) =>
-          s.qualifiedAsThird || s.realPosition === 1 || s.realPosition === 2,
+          groupsWithMatches.has(s.groupId) &&
+          (s.qualifiedAsThird || s.realPosition === 1 || s.realPosition === 2),
       )
       .map((s) => s.teamId),
   );
