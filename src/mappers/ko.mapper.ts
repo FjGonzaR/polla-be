@@ -99,7 +99,7 @@ export function toKoMatchDto(
   prediction: KoPrediction | null,
   pointsEarned: KoPointsEarnedDto | null,
 ): KoMatchDto {
-  const lockedAt = new Date(match.scheduledAt.getTime() - 30 * 60 * 1000)
+  const lockedAt = match.scheduledAt
   const lockedIn = new Date() >= lockedAt
 
   const result: KoResultDto | null =

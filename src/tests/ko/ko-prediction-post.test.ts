@@ -77,12 +77,12 @@ describe('POST /ko/matches/:matchId/predictions', () => {
     const { cookie } = await createAuthenticatedParticipant()
     const homeTeam = await new TeamBuilder().build()
     const awayTeam = await new TeamBuilder().build()
-    // scheduledAt 29 min from now → lock threshold already passed
+    // scheduledAt 1 min ago → lock threshold (scheduledAt) already passed
     const match = await new MatchBuilder()
       .withRoundSlug('R32')
       .withHomeTeamId(homeTeam.id)
       .withAwayTeamId(awayTeam.id)
-      .withScheduledAt(new Date(Date.now() + 29 * 60 * 1000))
+      .withScheduledAt(new Date(Date.now() - 60 * 1000))
       .build()
 
     const res = await server.inject({

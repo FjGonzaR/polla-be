@@ -94,18 +94,18 @@ describe('GET /ko/matches', () => {
     expect(pred.pointsEarned).toBeNull()
   })
 
-  it('myPrediction.lockedIn = true when match scheduled within 30 min', async () => {
+  it('myPrediction.lockedIn = true when match start time has passed', async () => {
     const server = await buildServer()
     const { participant, cookie } = await createAuthenticatedParticipant()
 
     const homeTeam = await new TeamBuilder().build()
     const awayTeam = await new TeamBuilder().build()
-    // scheduledAt 29 min from now → lock time (scheduledAt - 30min) was 1 min ago
+    // scheduledAt 1 min ago → lock threshold (scheduledAt) already passed
     const match = await new MatchBuilder()
       .withRoundSlug('R32')
       .withHomeTeamId(homeTeam.id)
       .withAwayTeamId(awayTeam.id)
-      .withScheduledAt(new Date(Date.now() + 29 * 60 * 1000))
+      .withScheduledAt(new Date(Date.now() - 60 * 1000))
       .build()
 
     await buildKoPrediction({
