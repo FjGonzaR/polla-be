@@ -201,6 +201,15 @@ export async function setTop8Teams(teamIds: string[]): Promise<{ ok: boolean; te
   return { ok: true, teams: updated.filter((t) => idSet.has(t.id)).map(toTop8TeamDto) }
 }
 
+export async function setGroupLocked(groupId: string, locked: boolean): Promise<void> {
+  const group = await prisma.group.findUnique({ where: { id: groupId } })
+  if (!group) throw new AppError(404, 'GROUP_NOT_FOUND', 'Group not found')
+  await prisma.group.update({
+    where: { id: groupId },
+    data: { lockedAt: locked ? new Date() : null },
+  })
+}
+
 export async function listParticipants(): Promise<AdminParticipantDto[]> {
   const [participants, scoreGroups] = await Promise.all([
     prisma.participant.findMany({ orderBy: { name: 'asc' } }),

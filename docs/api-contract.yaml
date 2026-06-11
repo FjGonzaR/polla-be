@@ -685,6 +685,61 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /admin/groups/{groupId}/locked:
+    put:
+      tags: [admin]
+      summary: Abre o cierra un grupo para predicciones
+      operationId: putAdminGroupLocked
+      description: >
+        Marca un grupo específico como cerrado (`locked: true`) o abierto (`locked: false`).
+        Cuando está cerrado, cualquier intento de guardar predicciones para ese grupo
+        retorna 423 GROUP_LOCKED. Independiente del candado global de la fase de grupos.
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [locked]
+              properties:
+                locked: { type: boolean }
+            examples:
+              cerrar:
+                summary: Cerrar el grupo
+                value: { locked: true }
+              abrir:
+                summary: Volver a abrir el grupo
+                value: { locked: false }
+      responses:
+        '200':
+          description: Estado actualizado correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+              example: { ok: true }
+        '404':
+          description: Grupo no encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { code: "GROUP_NOT_FOUND", message: "Group not found" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /admin/whatsapp/qr:
     get:
       tags: [admin]
@@ -748,6 +803,7 @@ paths:
                   - id: "uuid-A"
                     label: "A"
                     name: "Grupo A"
+                    locked: false
                     teams:
                       - id: "uuid-mex"
                         name: "México"
@@ -833,12 +889,18 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
               example: { error: "Posiciones duplicadas en grupo A", code: "INVALID_RANKINGS" }
         '423':
-          description: Candado activo — predicciones de grupos cerradas
+          description: >
+            Candado activo. Puede ser el candado global de fase de grupos o el cierre
+            individual del grupo enviado.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-              example: { error: "Las predicciones de grupos están cerradas", code: "PREDICTIONS_LOCKED" }
+              examples:
+                candado_global:
+                  value: { code: "PREDICTIONS_LOCKED", message: "Las predicciones de grupos están cerradas" }
+                grupo_cerrado:
+                  value: { code: "GROUP_LOCKED", message: "Group A is closed for predictions" }
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1891,11 +1953,14 @@ components:
 
     Group:
       type: object
-      required: [id, label, name, teams]
+      required: [id, label, name, locked, teams]
       properties:
         id:    { type: string, format: uuid }
         label: { type: string, description: "Letra del grupo, ej: A" }
         name:  { type: string, description: "Nombre completo, ej: Grupo A" }
+        locked:
+          type: boolean
+          description: "true si el admin cerró este grupo individualmente (lockedAt <= NOW()). El FE usa esto para deshabilitar la edición."
         teams:
           type: array
           items:

@@ -5,6 +5,7 @@ export class GroupBuilder {
   private label = 'A'
   private name = 'Grupo A'
   private lastMatchAt: Date | null = null
+  private lockedAt: Date | null = null
 
   withLabel(label: string): this {
     this.label = label
@@ -21,7 +22,14 @@ export class GroupBuilder {
     return this
   }
 
+  withLockedAt(date: Date): this {
+    this.lockedAt = date
+    return this
+  }
+
   async build(): Promise<Group> {
-    return prisma.group.create({ data: { label: this.label, name: this.name, lastMatchAt: this.lastMatchAt } })
+    return prisma.group.create({
+      data: { label: this.label, name: this.name, lastMatchAt: this.lastMatchAt, lockedAt: this.lockedAt },
+    })
   }
 }

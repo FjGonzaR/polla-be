@@ -78,6 +78,7 @@ model Group {
   name             String
   label            String            @unique
   lastMatchAt      DateTime?         @map("last_match_at")
+  lockedAt         DateTime?         @map("locked_at")
   teams            Team[]
   groupPredictions GroupPrediction[]
   standings        GroupStanding[]

@@ -18,6 +18,7 @@ export interface GroupDto {
   id: string
   label: string
   name: string
+  locked: boolean
   teams: TeamDto[]
 }
 
@@ -39,6 +40,7 @@ export function toGroupDto(
     id: group.id,
     label: group.label,
     name: group.name,
+    locked: group.lockedAt != null && group.lockedAt <= new Date(),
     teams: group.teams.map((t) =>
       toTeamDto(t, t.positionStats.length > 0 ? t.positionStats : null),
     ),

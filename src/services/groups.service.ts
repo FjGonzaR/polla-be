@@ -44,6 +44,10 @@ export async function upsertGroupPredictions(
       );
     }
 
+    if (group.lockedAt != null && group.lockedAt <= new Date()) {
+      throw new AppError(423, "GROUP_LOCKED", `Group ${group.label} is closed for predictions`);
+    }
+
     if (rankings.length !== 4) {
       throw new AppError(
         400,

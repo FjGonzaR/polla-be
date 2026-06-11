@@ -88,6 +88,28 @@ describe('GET /groups', () => {
     expect(pos1?.pct).toBe(75.5)
   })
 
+  it('grupo con lockedAt pasado → locked: true en respuesta', async () => {
+    const participant = await buildParticipant()
+    const token = signSession({ userId: participant.id })
+
+    const groupA = await prisma.group.create({
+      data: { name: 'Grupo A', label: 'A', lockedAt: new Date(Date.now() - 1000) },
+    })
+    const groupB = await prisma.group.create({ data: { name: 'Grupo B', label: 'B' } })
+    await prisma.team.create({ data: { name: 'Argentina', code: 'ARG', groupId: groupA.id } })
+    await prisma.team.create({ data: { name: 'Brasil', code: 'BRA', groupId: groupB.id } })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/groups', cookies: { session: token } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json()
+    expect(data[0].label).toBe('A')
+    expect(data[0].locked).toBe(true)
+    expect(data[1].label).toBe('B')
+    expect(data[1].locked).toBe(false)
+  })
+
   it('sin cookie → 401 MISSING_SESSION', async () => {
     const server = await buildServer()
     const res = await server.inject({

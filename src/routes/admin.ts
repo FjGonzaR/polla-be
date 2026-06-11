@@ -9,6 +9,7 @@ import {
   loadKoMatches,
   setTop8Teams,
   listParticipants,
+  setGroupLocked,
 } from '../services/admin.service.js'
 
 export default async function adminRoutes(fastify: FastifyInstance) {
@@ -92,6 +93,13 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     const { teamIds } = request.body as { teamIds: string[] }
     const result = await setTop8Teams(teamIds)
     return reply.code(200).send(result)
+  })
+
+  fastify.put('/groups/:groupId/locked', adminGuard, async (request, reply) => {
+    const { groupId } = request.params as { groupId: string }
+    const { locked } = request.body as { locked: boolean }
+    await setGroupLocked(groupId, locked)
+    return reply.code(200).send({ ok: true })
   })
 
   fastify.get('/participants', adminGuard, async (_request, reply) => {

@@ -56,8 +56,8 @@ export async function buildServer(): Promise<FastifyInstance> {
     syncStandings();
     syncKoResults();
 
-    // sync-standings: 6AM, 12PM, 6PM Colombia (UTC-5) = 11, 17, 23 UTC
-    cron.schedule("0 11,17,23 * * *", syncStandings);
+    // sync-standings: every 15 min
+    cron.schedule("*/15 * * * *", syncStandings);
 
     // sync-ko-results: cada 30 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
     cron.schedule("*/30 17-23,0-6 * * *", syncKoResults);

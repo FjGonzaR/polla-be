@@ -98,6 +98,25 @@ describe('POST /groups/predictions', () => {
     expect(pred?.predictedPosition).toBe(1)
   })
 
+  it('423 cuando el grupo específico está cerrado', async () => {
+    const participant = await buildParticipant()
+    const token = signSession({ userId: participant.id })
+    const { group, teams } = await setupGroup('A')
+
+    await prisma.group.update({ where: { id: group.id }, data: { lockedAt: new Date(Date.now() - 1000) } })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/groups/predictions',
+      cookies: { session: token },
+      payload: { predictions: [{ groupId: group.id, rankings: makeRankings(teams) }] },
+    })
+
+    expect(res.statusCode).toBe(423)
+    expect(res.json().code).toBe('GROUP_LOCKED')
+  })
+
   it('423 cuando el candado está activo', async () => {
     const participant = await buildParticipant()
     const token = signSession({ userId: participant.id })
