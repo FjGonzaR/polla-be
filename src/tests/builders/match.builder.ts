@@ -21,6 +21,7 @@ export class MatchBuilder {
   private scoreAway: number | null = null
   private winnerTeamId: string | null = null
   private status: 'SCHEDULED' | 'LIVE' | 'FINISHED' = 'SCHEDULED'
+  private externalMatchId: string | null = null
 
   withScheduledAt(date: Date): this {
     this.scheduledAt = date
@@ -44,6 +45,16 @@ export class MatchBuilder {
 
   withAwayTeamId(id: string): this {
     this.awayTeamId = id
+    return this
+  }
+
+  withExternalMatchId(externalMatchId: string): this {
+    this.externalMatchId = externalMatchId
+    return this
+  }
+
+  withStatus(status: 'SCHEDULED' | 'LIVE' | 'FINISHED'): this {
+    this.status = status
     return this
   }
 
@@ -75,6 +86,7 @@ export class MatchBuilder {
         scoreAway: this.scoreAway,
         winnerTeamId: this.winnerTeamId,
         status: this.status,
+        externalMatchId: this.externalMatchId,
       },
     })
   }

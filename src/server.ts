@@ -15,6 +15,7 @@ import scoreboardRoutes from "./routes/scoreboard.js";
 import whatsappRoutes from "./routes/whatsapp.js";
 import { syncStandings } from "./crons/sync-standings.js";
 import { syncKoResults } from "./crons/sync-ko-results.js";
+import { syncGroupResults } from "./crons/sync-group-results.js";
 import { sendWhatsappReminders } from "./crons/whatsapp-reminder.js";
 import { sendGroupPhaseReminder } from "./crons/group-phase-reminder.js";
 import { calculateGroupStats } from "./crons/calculate-group-stats.js";
@@ -55,12 +56,16 @@ export async function buildServer(): Promise<FastifyInstance> {
   if (process.env.NODE_ENV !== "test") {
     syncStandings();
     syncKoResults();
+    syncGroupResults();
 
     // sync-standings: every 15 min
     cron.schedule("*/5 * * * *", syncStandings);
 
     // sync-ko-results: cada 30 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
     cron.schedule("*/30 17-23,0-6 * * *", syncKoResults);
+
+    // sync-group-results: cada 15 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
+    cron.schedule("*/15 17-23,0-6 * * *", syncGroupResults);
 
     // sendWhatsappReminders: cada 10 MIN
     cron.schedule("*/10 * * * *", sendWhatsappReminders);
@@ -74,7 +79,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     cron.schedule("0 19 11 6 *", calculatePowerupStats);
 
     server.log.info(
-      "Crons registrados: sync-standings + sync-ko-results + whatsapp-reminder + group-phase-reminder + calculate-group-stats + calculate-powerup-stats",
+      "Crons registrados: sync-standings + sync-ko-results + sync-group-results + whatsapp-reminder + group-phase-reminder + calculate-group-stats + calculate-powerup-stats",
     );
   }
 
