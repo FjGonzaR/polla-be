@@ -165,11 +165,30 @@ model Match {
   winnerTeam      Team?          @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
   status          MatchStatus    @default(SCHEDULED)
   externalMatchId String?        @unique @map("external_match_id")
+  additionalData  Json?          @map("additional_data")
   koPredictions   KoPrediction[]
   scoreEvents     ScoreEvent[]
   reminders       MatchReminder[]
+  predictionStat  MatchPredictionStat?
 
   @@map("matches")
+}
+
+model MatchPredictionStat {
+  id               String   @id @default(uuid())
+  matchId          String   @unique @map("match_id")
+  match            Match    @relation(fields: [matchId], references: [id])
+  totalPredictions Int      @map("total_predictions")
+  pctHomeWin       Float    @map("pct_home_win")
+  pctDraw          Float    @map("pct_draw")
+  pctAwayWin       Float    @map("pct_away_win")
+  pctTripleActive  Float    @map("pct_triple_active")
+  topScoreHome     Int?     @map("top_score_home")
+  topScoreAway     Int?     @map("top_score_away")
+  topScorePct      Float    @map("top_score_pct")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("match_prediction_stats")
 }
 
 model GroupPrediction {

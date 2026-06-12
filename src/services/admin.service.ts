@@ -1,6 +1,7 @@
-import { type RoundSlug } from '@prisma/client'
+import { type RoundSlug, Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
+import { worldcupApi } from '../lib/worldcup-api.client.js'
 import {
   persistKoMatchScoreEvents,
   persistPowerupKoMatchEvents,
@@ -137,12 +138,73 @@ export async function loadGroups(groups: GroupInput[]): Promise<{ groupsCount: n
 
 interface KoMatchInput {
   externalMatchId: string | number
-  matchNumber: number
+  matchNumber?: number | null
   homeTeamId?: string | null
   awayTeamId?: string | null
   homeTeamLabel?: string | null
   awayTeamLabel?: string | null
-  scheduledAt: string
+  scheduledAt?: string | null
+}
+
+interface ResolvedMatchData {
+  matchNumber: number
+  homeTeamId: string | null
+  awayTeamId: string | null
+  homeTeamLabel: string | null
+  awayTeamLabel: string | null
+  scheduledAt: Date
+  additionalData: Prisma.InputJsonObject | null
+}
+
+function parseLocalDate(localDate: string): Date {
+  // Format from external API: "MM/DD/YYYY HH:mm"
+  const [datePart, timePart] = localDate.split(' ')
+  const [month, day, year] = datePart.split('/')
+  return new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${timePart}:00Z`)
+}
+
+async function resolveMatchFromApi(externalMatchId: string): Promise<ResolvedMatchData> {
+  const game = await worldcupApi.getMatch(externalMatchId)
+
+  const [homeTeam, awayTeam] = await Promise.all([
+    game.home_team_id !== '0'
+      ? prisma.team.findFirst({ where: { externalTeamId: game.home_team_id } })
+      : null,
+    game.away_team_id !== '0'
+      ? prisma.team.findFirst({ where: { externalTeamId: game.away_team_id } })
+      : null,
+  ])
+
+  let stadiumFields: Prisma.InputJsonObject = {}
+  if (game.stadium_id) {
+    try {
+      const stadium = await worldcupApi.getStadium(game.stadium_id)
+      stadiumFields = {
+        stadiumName: stadium.name_en,
+        stadiumCity: stadium.city_en,
+        stadiumCountry: stadium.country_en,
+        stadiumCapacity: stadium.capacity,
+      }
+    } catch {
+      // best-effort: continue without stadium data
+    }
+  }
+
+  const additionalData: Prisma.InputJsonObject = {
+    homeScorers: game.home_scorers ?? null,
+    awayScorers: game.away_scorers ?? null,
+    ...stadiumFields,
+  }
+
+  return {
+    matchNumber: parseInt(game.id, 10),
+    homeTeamId: homeTeam?.id ?? null,
+    awayTeamId: awayTeam?.id ?? null,
+    homeTeamLabel: homeTeam ? null : (game.home_team_label ?? null),
+    awayTeamLabel: awayTeam ? null : (game.away_team_label ?? null),
+    scheduledAt: parseLocalDate(game.local_date),
+    additionalData,
+  }
 }
 
 export async function loadKoMatches(
@@ -152,31 +214,44 @@ export async function loadKoMatches(
   const round = await prisma.round.findUnique({ where: { slug: roundSlug } })
   if (!round) throw new AppError(404, 'ROUND_NOT_FOUND', `Round '${roundSlug}' not found`)
 
-  await prisma.$transaction(
-    matches.map((m) =>
-      prisma.match.upsert({
-        where: { externalMatchId: String(m.externalMatchId) },
-        create: {
-          roundId: round.id,
-          matchNumber: m.matchNumber,
+  for (const m of matches) {
+    const extId = String(m.externalMatchId)
+    const resolved: ResolvedMatchData = m.scheduledAt
+      ? {
+          matchNumber: m.matchNumber!,
           homeTeamId: m.homeTeamId ?? null,
           awayTeamId: m.awayTeamId ?? null,
           homeTeamLabel: m.homeTeamLabel ?? null,
           awayTeamLabel: m.awayTeamLabel ?? null,
           scheduledAt: new Date(m.scheduledAt),
-          externalMatchId: String(m.externalMatchId),
-        },
-        update: {
-          matchNumber: m.matchNumber,
-          homeTeamId: m.homeTeamId ?? null,
-          awayTeamId: m.awayTeamId ?? null,
-          homeTeamLabel: m.homeTeamLabel ?? null,
-          awayTeamLabel: m.awayTeamLabel ?? null,
-          scheduledAt: new Date(m.scheduledAt),
-        },
-      }),
-    ),
-  )
+          additionalData: null,
+        }
+      : await resolveMatchFromApi(extId)
+
+    await prisma.match.upsert({
+      where: { externalMatchId: extId },
+      create: {
+        roundId: round.id,
+        externalMatchId: extId,
+        matchNumber: resolved.matchNumber,
+        homeTeamId: resolved.homeTeamId,
+        awayTeamId: resolved.awayTeamId,
+        homeTeamLabel: resolved.homeTeamLabel,
+        awayTeamLabel: resolved.awayTeamLabel,
+        scheduledAt: resolved.scheduledAt,
+        additionalData: resolved.additionalData ?? undefined,
+      },
+      update: {
+        matchNumber: resolved.matchNumber,
+        homeTeamId: resolved.homeTeamId,
+        awayTeamId: resolved.awayTeamId,
+        homeTeamLabel: resolved.homeTeamLabel,
+        awayTeamLabel: resolved.awayTeamLabel,
+        scheduledAt: resolved.scheduledAt,
+        ...(resolved.additionalData !== null && { additionalData: resolved.additionalData }),
+      },
+    })
+  }
 
   return { roundSlug, matchesCount: matches.length }
 }

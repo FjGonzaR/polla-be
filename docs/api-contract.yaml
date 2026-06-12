@@ -339,6 +339,20 @@ paths:
         Cada partido incluye externalMatchId (ID 1–104 de la API externa worldcup2026)
         para poder consultar resultados en tiempo real.
         lockedAt se calcula automáticamente como scheduledAt - 30 minutos.
+
+
+        **Modo manual** — Se envían todos los campos del partido (externalMatchId, matchNumber,
+        scheduledAt, equipos). El backend persiste los datos tal como se reciben.
+
+
+        **Modo API-fetch** — Se envía solo externalMatchId (sin scheduledAt). El backend consulta
+        worldcup26.ir para obtener equipos, fecha y marcador inicial. También carga la info del estadio
+        (nombre, ciudad, país, capacidad) y los scorers desde la API externa, almacenándolos en
+        additionalData (JSONB).
+
+
+        También acepta roundSlug GROUP para cargar partidos de fase de grupos destinados a una
+        vista de "partidos del día" (no afecta predicciones KO).
       requestBody:
         required: true
         content:
@@ -355,23 +369,33 @@ paths:
                   items:
                     $ref: '#/components/schemas/KoMatchInput'
                   minItems: 1
-            example:
-              roundSlug: "R32"
-              matches:
-                - externalMatchId: 73
-                  matchNumber: 1
-                  homeTeamId: null
-                  awayTeamId: null
-                  homeTeamLabel: "Runner-up Group A"
-                  awayTeamLabel: "Runner-up Group B"
-                  scheduledAt: "2026-06-28T12:00:00Z"
-                - externalMatchId: 74
-                  matchNumber: 2
-                  homeTeamId: "uuid-col"
-                  awayTeamId: "uuid-bra"
-                  homeTeamLabel: null
-                  awayTeamLabel: null
-                  scheduledAt: "2026-06-28T16:00:00Z"
+            examples:
+              manualMode:
+                summary: "Modo manual — datos completos por partido"
+                value:
+                  roundSlug: "R32"
+                  matches:
+                    - externalMatchId: 73
+                      matchNumber: 1
+                      homeTeamId: null
+                      awayTeamId: null
+                      homeTeamLabel: "Runner-up Group A"
+                      awayTeamLabel: "Runner-up Group B"
+                      scheduledAt: "2026-06-28T12:00:00Z"
+                    - externalMatchId: 74
+                      matchNumber: 2
+                      homeTeamId: "uuid-col"
+                      awayTeamId: "uuid-bra"
+                      homeTeamLabel: null
+                      awayTeamLabel: null
+                      scheduledAt: "2026-06-28T16:00:00Z"
+              apiFetchMode:
+                summary: "Modo API-fetch — solo externalMatchId, el backend consulta worldcup26.ir"
+                value:
+                  roundSlug: "R32"
+                  matches:
+                    - externalMatchId: 73
+                    - externalMatchId: 74
       responses:
         '201':
           description: Partidos cargados correctamente
@@ -1173,6 +1197,7 @@ paths:
                     awayTeamLabel: "Runner-up Group B"
                     result: null
                     myPrediction: null
+                    stats: null
                   - id: "uuid-match-2"
                     externalMatchId: 74
                     matchNumber: 2
@@ -1190,6 +1215,13 @@ paths:
                       teamAdvancesId: "uuid-col"
                       tripleActive: false
                       lockedIn: true
+                    stats:
+                      totalPredictions: 18
+                      pctHomeWin: 55.6
+                      pctDraw: 16.7
+                      pctAwayWin: 27.8
+                      pctTripleActive: 33.3
+                      topScore: { home: 1, away: 0, pct: 22.2 }
         '400':
           description: roundSlug inválido o faltante
           content:
@@ -1898,19 +1930,21 @@ components:
 
     KoMatchInput:
       type: object
-      required: [externalMatchId, matchNumber, scheduledAt]
+      required: [externalMatchId]
       description: >
-        Partido de fase KO. externalMatchId corresponde al ID numérico (1–104)
+        Partido de fase KO o grupos. externalMatchId corresponde al ID numérico (1–104)
         de la API externa (worldcup2026), usado para consultar resultados en tiempo real.
         homeTeamId y awayTeamId son opcionales cuando los cruces aún no se conocen;
         en ese caso se usan homeTeamLabel y awayTeamLabel como placeholders.
+        Si scheduledAt se omite, el backend consulta la API externa para completar los datos
+        (modo API-fetch).
       properties:
         externalMatchId:
           type: integer
           description: "ID numérico de la API externa worldcup2026 (1–104)"
         matchNumber:
           type: integer
-          description: "Número de partido dentro de la ronda (1-based)"
+          description: "Número de partido dentro de la ronda (1-based). Inferido del id externo en modo API-fetch."
         homeTeamId:
           type: [string, 'null']
           format: uuid
@@ -1924,8 +1958,9 @@ components:
           type: [string, 'null']
           description: "Placeholder cuando el equipo aún no se conoce, ej: Runner-up Group B"
         scheduledAt:
-          type: string
+          type: [string, 'null']
           format: date-time
+          description: "Fecha y hora del partido. Si se omite, se obtiene de la API externa."
 
     Team:
       type: object
@@ -2178,6 +2213,43 @@ components:
         myPrediction:
           oneOf:
             - $ref: '#/components/schemas/KoMyPrediction'
+            - type: 'null'
+        stats:
+          description: >
+            Estadísticas agregadas de predicciones. Null hasta que el partido comienza
+            (LIVE o FINISHED). Oculto antes del inicio para no sesgar predicciones.
+          oneOf:
+            - $ref: '#/components/schemas/KoMatchStats'
+            - type: 'null'
+
+    KoMatchStats:
+      type: object
+      required: [totalPredictions, pctHomeWin, pctDraw, pctAwayWin, pctTripleActive, topScore]
+      properties:
+        totalPredictions:
+          type: integer
+          description: "Total de predicciones registradas para este partido"
+        pctHomeWin:
+          type: number
+          description: "% de participantes que predicen victoria del equipo local (0.0–100.0)"
+        pctDraw:
+          type: number
+          description: "% de participantes que predicen empate"
+        pctAwayWin:
+          type: number
+          description: "% de participantes que predicen victoria del equipo visitante"
+        pctTripleActive:
+          type: number
+          description: "% de participantes con triple-o-nada activado en este partido"
+        topScore:
+          description: "Marcador más predicho. Null si no hay predicciones."
+          oneOf:
+            - type: object
+              required: [home, away, pct]
+              properties:
+                home: { type: integer }
+                away: { type: integer }
+                pct:  { type: number, description: "% de predicciones con este marcador exacto" }
             - type: 'null'
 
     KoRound:

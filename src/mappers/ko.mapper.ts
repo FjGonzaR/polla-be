@@ -1,4 +1,4 @@
-import type { KoPrediction, Match, Round, Team } from '@prisma/client'
+import type { KoPrediction, Match, MatchPredictionStat, Round, Team } from '@prisma/client'
 
 export interface KoTeamDto {
   id: string
@@ -31,6 +31,15 @@ export interface KoMyPredictionDto {
   pointsEarned: KoPointsEarnedDto | null
 }
 
+export interface KoMatchStatsDto {
+  totalPredictions: number
+  pctHomeWin: number
+  pctDraw: number
+  pctAwayWin: number
+  pctTripleActive: number
+  topScore: { home: number; away: number; pct: number } | null
+}
+
 export interface KoMatchDto {
   id: string
   externalMatchId: number | null
@@ -44,6 +53,7 @@ export interface KoMatchDto {
   awayTeamLabel: string | null
   result: KoResultDto | null
   myPrediction: KoMyPredictionDto | null
+  stats: KoMatchStatsDto | null
 }
 
 export interface KoRoundDto {
@@ -90,6 +100,20 @@ export function toKoTeamDto(team: Team): KoTeamDto {
   return { id: team.id, name: team.name, code: team.code, flag: team.flag }
 }
 
+export function toKoMatchStatsDto(stat: MatchPredictionStat): KoMatchStatsDto {
+  return {
+    totalPredictions: stat.totalPredictions,
+    pctHomeWin: stat.pctHomeWin,
+    pctDraw: stat.pctDraw,
+    pctAwayWin: stat.pctAwayWin,
+    pctTripleActive: stat.pctTripleActive,
+    topScore:
+      stat.topScoreHome != null && stat.topScoreAway != null
+        ? { home: stat.topScoreHome, away: stat.topScoreAway, pct: stat.topScorePct }
+        : null,
+  }
+}
+
 export function toKoRoundDto(round: Round): KoRoundDto {
   return { slug: round.slug, name: round.name, order: round.order }
 }
@@ -98,9 +122,15 @@ export function toKoMatchDto(
   match: MatchWithTeams,
   prediction: KoPrediction | null,
   pointsEarned: KoPointsEarnedDto | null,
+  stat: MatchPredictionStat | null = null,
 ): KoMatchDto {
   const lockedAt = match.scheduledAt
   const lockedIn = new Date() >= lockedAt
+
+  // Stats expose the crowd's predictions; only reveal once the match has
+  // started (kickoff), so individual predictions stay secret beforehand.
+  const matchStarted = match.status === 'LIVE' || match.status === 'FINISHED' || new Date() >= match.scheduledAt
+  const stats = stat && matchStarted ? toKoMatchStatsDto(stat) : null
 
   const result: KoResultDto | null =
     match.scoreHome != null && match.scoreAway != null && match.winnerTeamId != null
@@ -131,5 +161,6 @@ export function toKoMatchDto(
     awayTeamLabel: match.awayTeam?.name ?? null,
     result,
     myPrediction,
+    stats,
   }
 }

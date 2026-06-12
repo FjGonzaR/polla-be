@@ -44,18 +44,21 @@ async function buildKoMatchForSync(externalMatchId: string, scheduledAt: Date = 
 
 function apiMatch(overrides: Partial<WorldCupMatch> = {}): WorldCupMatch {
   return {
-    _id: 'ext-match-1',
-    id: 'ext-match-1',
+    _id: '679c9c8a5749c4077500e073',
+    id: '73',
     home_team_id: 'ext-home',
     away_team_id: 'ext-away',
     home_score: '2',
     away_score: '1',
+    home_scorers: 'null',
+    away_scorers: 'null',
+    group: 'R32',
+    matchday: '4',
+    stadium_id: '16',
+    local_date: '06/28/2026 12:00',
     finished: 'TRUE',
-    type: 'knockout',
-    home_team_label: 'Home FC',
-    away_team_label: 'Away FC',
-    time_elapsed: '90',
-    local_date: '2026-07-01',
+    time_elapsed: 'finished',
+    type: 'r32',
     ...overrides,
   }
 }
@@ -252,5 +255,44 @@ describe('syncKoResults', () => {
     expect(updated1?.status).toBe('SCHEDULED')
     expect(updated2?.status).toBe('FINISHED')
     expect(updated2?.winnerTeamId).toBeNull()
+  })
+
+  it('match goes LIVE → match prediction stat row created from predictions', async () => {
+    const { match, home, away } = await buildKoMatchForSync('ext-match-stats-live')
+
+    const p1 = await buildParticipant()
+    const p2 = await buildParticipant()
+    await buildKoPrediction({ participantId: p1.id, matchId: match.id, teamAdvancesId: home.id, scoreHome: 2, scoreAway: 1 })
+    await buildKoPrediction({ participantId: p2.id, matchId: match.id, teamAdvancesId: away.id, scoreHome: 0, scoreAway: 1 })
+
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ finished: 'FALSE', time_elapsed: '45', home_score: '0', away_score: '0', home_scorers: 'null', away_scorers: 'null' }),
+    )
+
+    await syncKoResults()
+
+    const stat = await prisma.matchPredictionStat.findUnique({ where: { matchId: match.id } })
+    expect(stat).not.toBeNull()
+    expect(stat?.totalPredictions).toBe(2)
+    expect(stat?.pctHomeWin).toBe(50)
+    expect(stat?.pctAwayWin).toBe(50)
+    expect(stat?.pctDraw).toBe(0)
+  })
+
+  it('stat computation is idempotent → running sync twice keeps a single row', async () => {
+    const { match, home } = await buildKoMatchForSync('ext-match-stats-idem')
+
+    const p1 = await buildParticipant()
+    await buildKoPrediction({ participantId: p1.id, matchId: match.id, teamAdvancesId: home.id, scoreHome: 1, scoreAway: 0 })
+
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ finished: 'FALSE', time_elapsed: '45', home_score: '0', away_score: '0', home_scorers: 'null', away_scorers: 'null' }),
+    )
+
+    await syncKoResults()
+    await syncKoResults()
+
+    const rows = await prisma.matchPredictionStat.findMany({ where: { matchId: match.id } })
+    expect(rows).toHaveLength(1)
   })
 })
