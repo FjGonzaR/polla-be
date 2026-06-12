@@ -164,6 +164,7 @@ model Match {
   winnerTeam      Team?          @relation("WinnerTeam", fields: [winnerTeamId], references: [id])
   status          MatchStatus    @default(SCHEDULED)
   externalMatchId String?        @unique @map("external_match_id")
+  additionalData  Json?          @map("additional_data")
   koPredictions   KoPrediction[]
   scoreEvents     ScoreEvent[]
   reminders       MatchReminder[]

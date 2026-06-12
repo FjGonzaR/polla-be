@@ -44,18 +44,21 @@ async function buildKoMatchForSync(externalMatchId: string, scheduledAt: Date = 
 
 function apiMatch(overrides: Partial<WorldCupMatch> = {}): WorldCupMatch {
   return {
-    _id: 'ext-match-1',
-    id: 'ext-match-1',
+    _id: '679c9c8a5749c4077500e073',
+    id: '73',
     home_team_id: 'ext-home',
     away_team_id: 'ext-away',
     home_score: '2',
     away_score: '1',
+    home_scorers: 'null',
+    away_scorers: 'null',
+    group: 'R32',
+    matchday: '4',
+    stadium_id: '16',
+    local_date: '06/28/2026 12:00',
     finished: 'TRUE',
-    type: 'knockout',
-    home_team_label: 'Home FC',
-    away_team_label: 'Away FC',
-    time_elapsed: '90',
-    local_date: '2026-07-01',
+    time_elapsed: 'finished',
+    type: 'r32',
     ...overrides,
   }
 }
@@ -262,7 +265,9 @@ describe('syncKoResults', () => {
     await buildKoPrediction({ participantId: p1.id, matchId: match.id, teamAdvancesId: home.id, scoreHome: 2, scoreAway: 1 })
     await buildKoPrediction({ participantId: p2.id, matchId: match.id, teamAdvancesId: away.id, scoreHome: 0, scoreAway: 1 })
 
-    mockGetMatch.mockResolvedValue(apiMatch({ finished: 'FALSE', time_elapsed: '45' }))
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ finished: 'FALSE', time_elapsed: '45', home_score: '0', away_score: '0', home_scorers: 'null', away_scorers: 'null' }),
+    )
 
     await syncKoResults()
 
@@ -280,7 +285,9 @@ describe('syncKoResults', () => {
     const p1 = await buildParticipant()
     await buildKoPrediction({ participantId: p1.id, matchId: match.id, teamAdvancesId: home.id, scoreHome: 1, scoreAway: 0 })
 
-    mockGetMatch.mockResolvedValue(apiMatch({ finished: 'FALSE', time_elapsed: '45' }))
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ finished: 'FALSE', time_elapsed: '45', home_score: '0', away_score: '0', home_scorers: 'null', away_scorers: 'null' }),
+    )
 
     await syncKoResults()
     await syncKoResults()

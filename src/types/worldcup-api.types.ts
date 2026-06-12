@@ -29,10 +29,24 @@ export interface WorldCupMatch {
   away_team_id: string
   home_score: string
   away_score: string
+  home_scorers?: string
+  away_scorers?: string
+  group?: string
+  matchday?: string
+  stadium_id?: string
   finished: string
   type: string
-  home_team_label: string
-  away_team_label: string
+  home_team_label?: string
+  away_team_label?: string
   time_elapsed: string
   local_date: string
+}
+
+export interface WorldCupStadium {
+  _id: string
+  id: string
+  name_en: string
+  city_en: string
+  country_en: string
+  capacity: number
 }

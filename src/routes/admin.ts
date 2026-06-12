@@ -76,12 +76,12 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       roundSlug: RoundSlug
       matches: {
         externalMatchId: string | number
-        matchNumber: number
+        matchNumber?: number | null
         homeTeamId?: string | null
         awayTeamId?: string | null
         homeTeamLabel?: string | null
         awayTeamLabel?: string | null
-        scheduledAt: string
+        scheduledAt?: string | null
       }[]
     }
     const result = await loadKoMatches(roundSlug, matches)

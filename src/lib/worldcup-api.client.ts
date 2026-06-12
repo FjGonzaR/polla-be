@@ -1,6 +1,7 @@
 import type {
   WorldCupMatch,
   WorldCupStanding,
+  WorldCupStadium,
   WorldCupTeam,
 } from "../types/worldcup-api.types.js";
 
@@ -61,6 +62,11 @@ class WorldCupApiClient {
   async getAllMatches(): Promise<WorldCupMatch[]> {
     const data = await this.fetch<{ games: WorldCupMatch[] }>("/get/games");
     return data.games;
+  }
+
+  async getStadium(stadiumId: string): Promise<WorldCupStadium> {
+    const data = await this.fetch<{ stadium: WorldCupStadium }>(`/get/stadium/${stadiumId}`);
+    return data.stadium;
   }
 }
 
