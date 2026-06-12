@@ -14,7 +14,7 @@ export async function findAllGroups(): Promise<GroupDto[]> {
   const groups = await prisma.group.findMany({
     include: {
       teams: {
-        include: { positionStats: true },
+        include: { positionStats: true, standing: true },
       },
     },
     orderBy: { label: "asc" },

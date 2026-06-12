@@ -6,6 +6,7 @@ import { buildGroupPositionStat } from '../builders/group-position-stat.builder.
 import { signSession } from '../../lib/session.js'
 
 afterEach(async () => {
+  await prisma.groupStanding.deleteMany()
   await prisma.groupPositionStat.deleteMany()
   await prisma.team.deleteMany()
   await prisma.group.deleteMany()
@@ -86,6 +87,52 @@ describe('GET /groups', () => {
     expect(stats).toHaveLength(2)
     const pos1 = stats.find((s) => s.position === 1)
     expect(pos1?.pct).toBe(75.5)
+  })
+
+  it('standing presente → cada equipo trae standing y los teams vienen ordenados por realPosition', async () => {
+    const participant = await buildParticipant()
+    const token = signSession({ userId: participant.id })
+
+    const groupA = await prisma.group.create({ data: { name: 'Grupo A', label: 'A' } })
+    const first = await prisma.team.create({ data: { name: 'First', code: 'FIR', groupId: groupA.id } })
+    const second = await prisma.team.create({ data: { name: 'Second', code: 'SEC', groupId: groupA.id } })
+
+    await prisma.groupStanding.create({
+      data: { teamId: second.id, groupId: groupA.id, pts: 3, goalsFor: 1, goalsAgainst: 4, matchesPlayed: 2, realPosition: 2 },
+    })
+    await prisma.groupStanding.create({
+      data: { teamId: first.id, groupId: groupA.id, pts: 6, goalsFor: 5, goalsAgainst: 1, matchesPlayed: 2, realPosition: 1 },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/groups', cookies: { session: token } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json()
+    const teams = data[0].teams
+    expect(teams.map((t: { code: string }) => t.code)).toEqual(['FIR', 'SEC'])
+    expect(teams[0].standing).toMatchObject({
+      realPosition: 1,
+      pts: 6,
+      matchesPlayed: 2,
+      goalsFor: 5,
+      goalsAgainst: 1,
+      goalDiff: 4,
+    })
+  })
+
+  it('sin standing en BD → standing es null', async () => {
+    const participant = await buildParticipant()
+    const token = signSession({ userId: participant.id })
+
+    const groupA = await prisma.group.create({ data: { name: 'Grupo A', label: 'A' } })
+    await prisma.team.create({ data: { name: 'Argentina', code: 'ARG', groupId: groupA.id } })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/groups', cookies: { session: token } })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data[0].teams[0].standing).toBeNull()
   })
 
   it('grupo con lockedAt pasado → locked: true en respuesta', async () => {

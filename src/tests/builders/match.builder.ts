@@ -58,6 +58,12 @@ export class MatchBuilder {
     return this
   }
 
+  withScore(scoreHome: number, scoreAway: number): this {
+    this.scoreHome = scoreHome
+    this.scoreAway = scoreAway
+    return this
+  }
+
   withResult(scoreHome: number, scoreAway: number, winnerTeamId: string): this {
     this.scoreHome = scoreHome
     this.scoreAway = scoreAway

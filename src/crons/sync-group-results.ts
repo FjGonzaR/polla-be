@@ -1,15 +1,18 @@
 import { MatchStatus, RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
+import { recalculateGroupStandings } from '../services/group-standings.service.js'
 
 /**
- * Syncs group-stage match scores/status from the external API.
+ * Syncs group-stage match scores/status from the external API, then recomputes
+ * group_standings from those results.
  *
- * These matches are PURELY INFORMATIONAL: this cron never touches score_events,
- * powerups, or MatchPredictionStat. Group scoring is handled separately by
- * sync-standings (based on final standings/positions, not per-match results).
- * It also never sets winnerTeamId — draws are normal in the group stage and the
- * winner is irrelevant for display.
+ * This is now the live source for standings (replacing sync-standings). After
+ * updating match scores it calls recalculateGroupStandings(), which derives
+ * group_standings from the match results and — once a group is finalized —
+ * persists group score_events (same behavior sync-standings used to trigger).
+ * It still never sets winnerTeamId (draws are normal in the group stage) nor
+ * touches MatchPredictionStat for group matches.
  */
 export async function syncGroupResults(): Promise<void> {
   console.info('[sync-group-results] Iniciando sincronización...')
@@ -31,6 +34,8 @@ export async function syncGroupResults(): Promise<void> {
 
     if (partidos.length === 0) {
       console.info('[sync-group-results] Sin partidos pendientes de sincronizar')
+      await recalculateGroupStandings()
+      console.info('[sync-group-results] group_standings recalculados')
       return
     }
 
@@ -90,6 +95,9 @@ export async function syncGroupResults(): Promise<void> {
     console.info(
       `[sync-group-results] OK — ${actualizados}/${partidos.length} partido(s) actualizado(s)`,
     )
+
+    await recalculateGroupStandings()
+    console.info('[sync-group-results] group_standings recalculados')
   } catch (error) {
     console.error('[sync-group-results] Error general:', (error as Error).message)
   }

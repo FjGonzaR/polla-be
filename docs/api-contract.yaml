@@ -838,12 +838,20 @@ paths:
                           - { position: 1, pct: 60.0 }
                           - { position: 2, pct: 25.0 }
                           - { position: 3, pct: 15.0 }
+                        standing:
+                          realPosition: 1
+                          pts: 6
+                          matchesPlayed: 2
+                          goalsFor: 4
+                          goalsAgainst: 1
+                          goalDiff: 3
                       - id: "uuid-usa"
                         name: "Estados Unidos"
                         code: "USA"
                         isTop8: true
                         flag: "https://flagcdn.com/w80/us.png"
                         positionStats: null
+                        standing: null
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -2042,7 +2050,7 @@ components:
 
     Team:
       type: object
-      required: [id, name, code, isTop8, positionStats]
+      required: [id, name, code, isTop8, positionStats, standing]
       properties:
         id:     { type: string, format: uuid }
         name:   { type: string }
@@ -2062,6 +2070,24 @@ components:
                 properties:
                   position: { type: integer, minimum: 1, maximum: 4 }
                   pct:      { type: number, description: "% de participantes que pusieron a este equipo en esta posición (0.0–100.0)" }
+            - type: 'null'
+        standing:
+          description: >
+            Standing real del equipo en su grupo, calculado en vivo desde los resultados de
+            los partidos por sync-group-results. Los partidos LIVE suman pts/goles al
+            instante; matchesPlayed cuenta solo partidos finalizados. Null hasta que el
+            equipo tenga al menos un partido con marcador. Orden de teams dentro del grupo:
+            por realPosition ascendente.
+          oneOf:
+            - type: object
+              required: [realPosition, pts, matchesPlayed, goalsFor, goalsAgainst, goalDiff]
+              properties:
+                realPosition: { type: [integer, 'null'], minimum: 1, maximum: 4, description: "Posición en la tabla (1–4) por pts → diferencia de gol → goles a favor" }
+                pts:          { type: integer }
+                matchesPlayed: { type: integer, description: "Solo partidos FINISHED" }
+                goalsFor:     { type: integer }
+                goalsAgainst: { type: integer }
+                goalDiff:     { type: integer, description: "goalsFor - goalsAgainst" }
             - type: 'null'
 
     Group:

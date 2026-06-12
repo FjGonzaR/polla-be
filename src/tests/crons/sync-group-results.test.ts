@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { prisma } from '../../lib/prisma.js'
 import { MatchBuilder } from '../builders/match.builder.js'
+import { TeamBuilder } from '../builders/team.builder.js'
 import { syncGroupResults } from '../../crons/sync-group-results.js'
 import type { WorldCupMatch } from '../../types/worldcup-api.types.js'
 
@@ -62,6 +63,29 @@ describe('syncGroupResults', () => {
     expect(await prisma.matchPredictionStat.count()).toBe(0)
   })
 
+  it('finished group match → group_standings recomputed from the result', async () => {
+    const group = await prisma.group.create({ data: { label: 'A', name: 'Group A' } })
+    const home = await new TeamBuilder().withCode('HOM').withGroupId(group.id).build()
+    const away = await new TeamBuilder().withCode('AWY').withGroupId(group.id).build()
+
+    await new MatchBuilder()
+      .withRoundSlug('GROUP')
+      .withHomeTeamId(home.id)
+      .withAwayTeamId(away.id)
+      .withExternalMatchId('ext-group-standings')
+      .withScheduledAt(THREE_HOURS_AGO)
+      .build()
+
+    mockGetMatch.mockResolvedValue(apiMatch({ home_score: '2', away_score: '0' }))
+
+    await syncGroupResults()
+
+    const homeStanding = await prisma.groupStanding.findUnique({ where: { teamId: home.id } })
+    const awayStanding = await prisma.groupStanding.findUnique({ where: { teamId: away.id } })
+    expect(homeStanding).toMatchObject({ pts: 3, goalsFor: 2, goalsAgainst: 0, matchesPlayed: 1, realPosition: 1 })
+    expect(awayStanding).toMatchObject({ pts: 0, goalsFor: 0, goalsAgainst: 2, matchesPlayed: 1, realPosition: 2 })
+  })
+
   it('in-progress group match → status=LIVE with live scores', async () => {
     const match = await new MatchBuilder()
       .withRoundSlug('GROUP')
@@ -95,6 +119,34 @@ describe('syncGroupResults', () => {
     expect(mockGetMatch).not.toHaveBeenCalled()
     const updated = await prisma.match.findUnique({ where: { id: koMatch.id } })
     expect(updated?.status).toBe('SCHEDULED')
+  })
+
+  it('API reports notstarted (delayed match) → stays SCHEDULED, no score, no standings', async () => {
+    const group = await prisma.group.create({ data: { label: 'A', name: 'Group A' } })
+    const home = await new TeamBuilder().withCode('HOM').withGroupId(group.id).build()
+    const away = await new TeamBuilder().withCode('AWY').withGroupId(group.id).build()
+
+    const match = await new MatchBuilder()
+      .withRoundSlug('GROUP')
+      .withHomeTeamId(home.id)
+      .withAwayTeamId(away.id)
+      .withExternalMatchId('ext-notstarted')
+      .withScheduledAt(THREE_HOURS_AGO)
+      .build()
+
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ finished: 'FALSE', time_elapsed: 'notstarted', home_score: '0', away_score: '0' }),
+    )
+
+    await syncGroupResults()
+
+    const updated = await prisma.match.findUnique({ where: { id: match.id } })
+    expect(updated?.status).toBe('SCHEDULED')
+    expect(updated?.scoreHome).toBeNull()
+    expect(updated?.scoreAway).toBeNull()
+
+    const standings = await prisma.groupStanding.findMany({ where: { groupId: group.id } })
+    expect(standings.every((s) => s.pts === 0 && s.matchesPlayed === 0)).toBe(true)
   })
 
   it('match scheduled <120min ago → getMatch never called', async () => {

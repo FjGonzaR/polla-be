@@ -13,7 +13,6 @@ import powerupsRoutes from "./routes/powerups.js";
 import adminRoutes from "./routes/admin.js";
 import scoreboardRoutes from "./routes/scoreboard.js";
 import whatsappRoutes from "./routes/whatsapp.js";
-import { syncStandings } from "./crons/sync-standings.js";
 import { syncKoResults } from "./crons/sync-ko-results.js";
 import { syncGroupResults } from "./crons/sync-group-results.js";
 import { sendWhatsappReminders } from "./crons/whatsapp-reminder.js";
@@ -54,12 +53,12 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
 
   if (process.env.NODE_ENV !== "test") {
-    syncStandings();
     syncKoResults();
     syncGroupResults();
 
-    // sync-standings: every 15 min
-    cron.schedule("*/5 * * * *", syncStandings);
+    // sync-standings: DESREGISTRADO — standings ahora se calculan desde los
+    // resultados de los partidos en sync-group-results. Se mantiene como
+    // fallback manual (worldcupApi.getStandings()).
 
     // sync-ko-results: cada 30 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
     cron.schedule("*/30 17-23,0-6 * * *", syncKoResults);
@@ -79,7 +78,7 @@ export async function buildServer(): Promise<FastifyInstance> {
     cron.schedule("0 19 11 6 *", calculatePowerupStats);
 
     server.log.info(
-      "Crons registrados: sync-standings + sync-ko-results + sync-group-results + whatsapp-reminder + group-phase-reminder + calculate-group-stats + calculate-powerup-stats",
+      "Crons registrados: sync-ko-results + sync-group-results + whatsapp-reminder + group-phase-reminder + calculate-group-stats + calculate-powerup-stats",
     );
   }
 
