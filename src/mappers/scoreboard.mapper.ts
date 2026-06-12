@@ -19,7 +19,7 @@ export interface ScoreBreakdownDto {
   prize: number | null
 }
 
-const PRIZES: Record<number, number> = { 1: 700000, 2: 250000, 3: 50000 }
+const PRIZES: Record<number, number> = { 1: 800000, 2: 300000, 3: 100000 }
 
 function computeSharedPrize(rank: number, groupSize: number): number | null {
   let sum = 0

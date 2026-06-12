@@ -123,7 +123,7 @@ Private World Cup 2026 predictions pool (~20 participants, invite-only).
 
 **Triple or nothing:** If `triple_active=true` and exact score missed → 0 pts for that match even if advancing team correct.
 
-**Scoreboard:** Calculated on-demand at `GET /scoreboard`. Tiebreaker: most exact KO scores. Prizes: 700K / 250K / 50K COP for ranks 1–3.
+**Scoreboard:** Calculated on-demand at `GET /scoreboard`. Tiebreaker: most exact KO scores. Prizes: 800K / 300K / 100K COP for ranks 1–3.
 
 ## Planned Endpoints (not yet implemented)
 

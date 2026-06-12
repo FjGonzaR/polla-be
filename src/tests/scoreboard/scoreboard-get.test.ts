@@ -128,16 +128,16 @@ describe('GET /scoreboard', () => {
     expect(data[0].participant.name).toBe('Beta')
     expect(data[0].rank).toBe(1)
     expect(data[0].total).toBe(100)
-    expect(data[0].prize).toBe(700000)
+    expect(data[0].prize).toBe(800000)
 
     expect(data[1].participant.name).toBe('Alpha')
     expect(data[1].rank).toBe(2)
-    expect(data[1].prize).toBe(250000)
+    expect(data[1].prize).toBe(300000)
 
     expect(data[2].participant.name).toBe('Gamma')
     expect(data[2].rank).toBe(3)
     expect(data[2].total).toBe(50)
-    expect(data[2].prize).toBe(50000)
+    expect(data[2].prize).toBe(100000)
   })
 
   it('tied participants share the same rank', async () => {
@@ -159,7 +159,7 @@ describe('GET /scoreboard', () => {
     expect(data.every((e) => e.rank === 1)).toBe(true)
   })
 
-  it('2-way tie for 1st → prize splits (700K+250K)/2 = 475K each', async () => {
+  it('2-way tie for 1st → prize splits (800K+300K)/2 = 550K each', async () => {
     const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'A' })
     const p2 = await buildParticipant({ name: 'B' })
     const p3 = await buildParticipant({ name: 'C' })
@@ -178,13 +178,13 @@ describe('GET /scoreboard', () => {
 
     const tied = data.filter((e) => e.rank === 1)
     expect(tied).toHaveLength(2)
-    expect(tied.every((e) => e.prize === 475000)).toBe(true) // (700K + 250K) / 2
+    expect(tied.every((e) => e.prize === 550000)).toBe(true) // (800K + 300K) / 2
 
     const third = data.find((e) => e.rank === 3)
-    expect(third?.prize).toBe(50000)
+    expect(third?.prize).toBe(100000)
   })
 
-  it('2-way tie for 2nd → prize splits (250K+50K)/2 = 150K each', async () => {
+  it('2-way tie for 2nd → prize splits (300K+100K)/2 = 200K each', async () => {
     const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'A' })
     const p2 = await buildParticipant({ name: 'B' })
     const p3 = await buildParticipant({ name: 'C' })
@@ -202,11 +202,11 @@ describe('GET /scoreboard', () => {
     const { data } = res.json<{ data: { rank: number; prize: number | null }[] }>()
 
     expect(data[0].rank).toBe(1)
-    expect(data[0].prize).toBe(700000)
+    expect(data[0].prize).toBe(800000)
 
     const tied = data.filter((e) => e.rank === 2)
     expect(tied).toHaveLength(2)
-    expect(tied.every((e) => e.prize === 150000)).toBe(true) // (250K + 50K) / 2
+    expect(tied.every((e) => e.prize === 200000)).toBe(true) // (300K + 100K) / 2
   })
 
   it('tie outside top 3 → prize null', async () => {
@@ -230,7 +230,7 @@ describe('GET /scoreboard', () => {
 
     const tied = data.filter((e) => e.rank === 3)
     expect(tied).toHaveLength(2)
-    expect(tied.every((e) => e.prize === 25000)).toBe(true) // 50K / 2 = 25K
+    expect(tied.every((e) => e.prize === 50000)).toBe(true) // 100K / 2 = 50K
   })
 
   it('viewer outside top 10 → 11 entries with viewer appended last', async () => {

@@ -439,12 +439,12 @@ describe('E2E: user happy path — group phase', () => {
     expect(userEntry.rank).toBe(1)
     expect(userEntry.participant.id).toBe(userParticipant!.id)
     expect(userEntry.total).toBe(EXPECTED_USER_TOTAL)
-    expect(userEntry.prize).toBe(700000)
+    expect(userEntry.prize).toBe(800000)
 
     expect(friendEntry.rank).toBe(2)
     expect(friendEntry.participant.id).toBe(friend.id)
     expect(friendEntry.total).toBe(EXPECTED_FRIEND_TOTAL)
-    expect(friendEntry.prize).toBe(250000)
+    expect(friendEntry.prize).toBe(300000)
 
     // ── Step 9: Breakdown matches the scoreboard total ────────────────────────
     const breakdownRes = await server.inject({

@@ -72,7 +72,7 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(body.breakdown.disappointment).toBe(0)
     expect(body.total).toBe(0)
     expect(body.tripleUsesRemaining).toBe(3)
-    expect(body.prize).toBe(700000) // only participant → rank 1
+    expect(body.prize).toBe(800000) // only participant → rank 1
   })
 
   it('aggregates score events by category correctly', async () => {
@@ -107,7 +107,7 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(body.breakdown.disappointment).toBe(-4)
     expect(body.total).toBe(56)                  // 17 + 8 + 28 + 7 + (-4)
     expect(body.tripleUsesRemaining).toBe(3)
-    expect(body.prize).toBe(700000)              // only participant → rank 1
+    expect(body.prize).toBe(800000)              // only participant → rank 1
   })
 
   it('tripleUsesRemaining decreases with active triples', async () => {
