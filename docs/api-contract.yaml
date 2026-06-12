@@ -847,6 +847,84 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /groups/matches:
+    get:
+      tags: [groups]
+      summary: Lista los partidos de fase de grupos (informativo)
+      operationId: getGroupMatches
+      description: >
+        Devuelve los partidos de fase de grupos (round.slug = GROUP) con marcador,
+        estado y equipos. Es puramente informativo: estos partidos no impactan los
+        puntos de la polla ni los score_events. El marcador y el estado los actualiza
+        el cron sync-group-results desde la API externa.
+
+        Ambos query params son opcionales y combinables.
+      parameters:
+        - name: date
+          in: query
+          required: false
+          description: >
+            Filtra solo los partidos de ese día calendario en hora de Colombia (UTC-5).
+            Internamente el rango es [date T05:00Z, date+1 T05:00Z). Formato YYYY-MM-DD.
+            Un valor mal formado devuelve 400 INVALID_DATE.
+          schema:
+            type: string
+            format: date
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+          example: "2026-06-14"
+        - name: groupId
+          in: query
+          required: false
+          description: Filtra solo los partidos del grupo indicado (por el grupo del equipo local).
+          schema:
+            type: string
+            format: uuid
+          example: "uuid-A"
+      responses:
+        '200':
+          description: Lista de partidos de fase de grupos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GroupMatch'
+              example:
+                data:
+                  - id: "uuid-match-1"
+                    matchNumber: 1
+                    groupId: "uuid-A"
+                    groupLabel: "A"
+                    scheduledAt: "2026-06-14T18:00:00.000Z"
+                    status: "FINISHED"
+                    homeTeam:
+                      id: "uuid-mex"
+                      name: "México"
+                      code: "MEX"
+                      flag: "https://flagcdn.com/w80/mx.png"
+                    awayTeam:
+                      id: "uuid-usa"
+                      name: "Estados Unidos"
+                      code: "USA"
+                      flag: "https://flagcdn.com/w80/us.png"
+                    homeTeamLabel: "México"
+                    awayTeamLabel: "Estados Unidos"
+                    scoreHome: 2
+                    scoreAway: 1
+        '400':
+          description: Query param date mal formado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example: { code: "INVALID_DATE", message: "date must be in YYYY-MM-DD format" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /groups/predictions:
     post:
       tags: [groups]
@@ -2000,6 +2078,48 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Team'
+
+    GroupMatchTeam:
+      type: object
+      description: Equipo dentro de un partido de fase de grupos (versión reducida, informativa).
+      required: [id, name, code]
+      properties:
+        id:   { type: string, format: uuid }
+        name: { type: string }
+        code: { type: string, description: "Código ISO 3 letras, ej: COL" }
+        flag: { type: [string, 'null'], description: "URL de la bandera del equipo" }
+
+    GroupMatch:
+      type: object
+      description: >
+        Partido de fase de grupos. Informativo: no impacta puntos ni score_events.
+        Los campos de equipo y marcador son null hasta que el cron sync-group-results
+        los actualice desde la API externa.
+      required:
+        [id, matchNumber, groupId, groupLabel, scheduledAt, status,
+         homeTeam, awayTeam, homeTeamLabel, awayTeamLabel, scoreHome, scoreAway]
+      properties:
+        id:          { type: string, format: uuid }
+        matchNumber: { type: integer, description: "Número de partido del torneo" }
+        groupId:     { type: [string, 'null'], format: uuid, description: "Grupo del partido (derivado del equipo). Null si no hay equipos asignados aún." }
+        groupLabel:  { type: [string, 'null'], description: "Letra del grupo, ej: A" }
+        scheduledAt: { type: string, format: date-time }
+        status:
+          type: string
+          enum: [SCHEDULED, LIVE, FINISHED]
+          description: "Estado del partido. Actualizado por el cron sync-group-results."
+        homeTeam:
+          oneOf:
+            - $ref: '#/components/schemas/GroupMatchTeam'
+            - type: 'null'
+        awayTeam:
+          oneOf:
+            - $ref: '#/components/schemas/GroupMatchTeam'
+            - type: 'null'
+        homeTeamLabel: { type: [string, 'null'], description: "Etiqueta del equipo local; cae al nombre del equipo si no hay etiqueta." }
+        awayTeamLabel: { type: [string, 'null'], description: "Etiqueta del equipo visitante; cae al nombre del equipo si no hay etiqueta." }
+        scoreHome:     { type: [integer, 'null'], description: "Goles local. Null hasta que el partido empiece." }
+        scoreAway:     { type: [integer, 'null'], description: "Goles visitante. Null hasta que el partido empiece." }
 
     GroupRanking:
       type: object
