@@ -60,11 +60,11 @@ export async function buildServer(): Promise<FastifyInstance> {
     // resultados de los partidos en sync-group-results. Se mantiene como
     // fallback manual (worldcupApi.getStandings()).
 
-    // sync-ko-results: cada 30 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
-    cron.schedule("*/30 17-23,0-6 * * *", syncKoResults);
+    // sync-ko-results: cada 5 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
+    cron.schedule("*/5 17-23,0-6 * * *", syncKoResults);
 
-    // sync-group-results: cada 15 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
-    cron.schedule("*/15 17-23,0-6 * * *", syncGroupResults);
+    // sync-group-results: cada 5 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
+    cron.schedule("*/5 17-23,0-6 * * *", syncGroupResults);
 
     // sendWhatsappReminders: cada 10 MIN
     cron.schedule("*/10 * * * *", sendWhatsappReminders);
