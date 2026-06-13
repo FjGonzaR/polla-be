@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
 import { persistKoMatchScoreEvents, persistPowerupKoMatchEvents } from '../services/score-calculation.service.js'
 import { computeAndPersistMatchStats } from '../services/match-stats.service.js'
+import { withUpdatedScorers } from '../lib/match-additional-data.js'
 
 async function persistMatchStatsSafe(matchId: string): Promise<void> {
   try {
@@ -80,6 +81,7 @@ export async function syncKoResults(): Promise<void> {
               scoreAway,
               status: MatchStatus.FINISHED,
               winnerTeamId: winnerTeamId ?? undefined,
+              additionalData: withUpdatedScorers(partido.additionalData, matchExterno),
             },
           })
 
@@ -107,6 +109,7 @@ export async function syncKoResults(): Promise<void> {
               status: MatchStatus.LIVE,
               scoreHome: liveHome,
               scoreAway: liveAway,
+              additionalData: withUpdatedScorers(partido.additionalData, matchExterno),
             },
           })
           await persistMatchStatsSafe(partido.id)

@@ -1,4 +1,5 @@
 import type { KoPrediction, Match, MatchPredictionStat, Round, Team } from '@prisma/client'
+import { toAdditionalDataDto, type AdditionalDataDto } from './match-additional-data.mapper.js'
 
 export interface KoTeamDto {
   id: string
@@ -54,6 +55,7 @@ export interface KoMatchDto {
   result: KoResultDto | null
   myPrediction: KoMyPredictionDto | null
   stats: KoMatchStatsDto | null
+  additionalData: AdditionalDataDto | null
 }
 
 export interface KoRoundDto {
@@ -162,5 +164,6 @@ export function toKoMatchDto(
     result,
     myPrediction,
     stats,
+    additionalData: toAdditionalDataDto(match.additionalData),
   }
 }

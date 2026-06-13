@@ -48,6 +48,45 @@ describe('GET /groups/matches', () => {
     expect(data[0].status).toBe('SCHEDULED')
   })
 
+  it('exposes additionalData (scorers + stadium) and null when absent', async () => {
+    const cookie = await authCookie()
+
+    const group = await prisma.group.create({ data: { name: 'Group A', label: 'A' } })
+    const home = await new TeamBuilder().withGroupId(group.id).build()
+
+    await new MatchBuilder()
+      .withRoundSlug('GROUP')
+      .withHomeTeamId(home.id)
+      .withScheduledAt(new Date('2026-06-14T18:00:00.000Z'))
+      .withAdditionalData({
+        homeScorers: "Yamal 50'",
+        awayScorers: 'null',
+        stadiumName: 'Estadio Azteca',
+        stadiumCapacity: 87523,
+      })
+      .build()
+    await new MatchBuilder()
+      .withRoundSlug('GROUP')
+      .withHomeTeamId(home.id)
+      .withScheduledAt(new Date('2026-06-15T18:00:00.000Z'))
+      .build()
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/groups/matches', headers: { cookie } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json()
+    expect(data[0].additionalData).toMatchObject({
+      homeScorers: "Yamal 50'",
+      awayScorers: 'null',
+      stadiumName: 'Estadio Azteca',
+      stadiumCapacity: 87523,
+      stadiumCity: null,
+      stadiumCountry: null,
+    })
+    expect(data[1].additionalData).toBeNull()
+  })
+
   it('KO matches are excluded', async () => {
     const cookie = await authCookie()
 

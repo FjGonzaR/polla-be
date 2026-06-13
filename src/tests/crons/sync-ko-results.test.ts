@@ -201,6 +201,54 @@ describe('syncKoResults', () => {
     expect(updated?.winnerTeamId).toBeNull()
   })
 
+  it('finished match → scorers updated in additionalData, stadium info preserved', async () => {
+    const { match } = await buildKoMatchForSync('ext-match-scorers')
+    await prisma.match.update({
+      where: { id: match.id },
+      data: {
+        additionalData: {
+          homeScorers: 'null',
+          awayScorers: 'null',
+          stadiumName: 'MetLife Stadium',
+          stadiumCapacity: 82500,
+        },
+      },
+    })
+
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ home_score: '3', away_score: '1', home_scorers: "Mbappé 12'; Giroud 40'; Griezmann 90'", away_scorers: "Son 55'" }),
+    )
+
+    await syncKoResults()
+
+    const updated = await prisma.match.findUnique({ where: { id: match.id } })
+    const data = updated?.additionalData as Record<string, unknown>
+    expect(data.homeScorers).toBe("Mbappé 12'; Giroud 40'; Griezmann 90'")
+    expect(data.awayScorers).toBe("Son 55'")
+    expect(data.stadiumName).toBe('MetLife Stadium')
+    expect(data.stadiumCapacity).toBe(82500)
+  })
+
+  it('live match → scorers also updated in additionalData', async () => {
+    const { match } = await buildKoMatchForSync('ext-match-scorers-live')
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { additionalData: { stadiumName: 'Lusail' } },
+    })
+
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ finished: 'FALSE', time_elapsed: '70', home_score: '1', away_score: '0', home_scorers: "Vinícius 65'", away_scorers: 'null' }),
+    )
+
+    await syncKoResults()
+
+    const updated = await prisma.match.findUnique({ where: { id: match.id } })
+    const data = updated?.additionalData as Record<string, unknown>
+    expect(updated?.status).toBe('LIVE')
+    expect(data.homeScorers).toBe("Vinícius 65'")
+    expect(data.stadiumName).toBe('Lusail')
+  })
+
   it('no matches with externalMatchId scheduled >120min ago → getMatch never called', async () => {
     const THIRTY_MIN_AGO = new Date(Date.now() - 30 * 60 * 1000)
     await buildKoMatchForSync('ext-match-too-recent', THIRTY_MIN_AGO)

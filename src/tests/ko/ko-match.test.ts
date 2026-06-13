@@ -101,6 +101,55 @@ describe('GET /ko/matches/:matchId', () => {
     expect(pred.pointsEarned.total).toBe(30)
   })
 
+  it('exposes additionalData (scorers + stadium) when present', async () => {
+    const server = await buildServer()
+    const { cookie } = await createAuthenticatedParticipant()
+
+    const match = await new MatchBuilder()
+      .withRoundSlug('FINAL')
+      .withAdditionalData({
+        homeScorers: "Mbappé 12'",
+        awayScorers: 'null',
+        stadiumName: 'MetLife Stadium',
+        stadiumCity: 'East Rutherford',
+        stadiumCountry: 'USA',
+        stadiumCapacity: 82500,
+      })
+      .build()
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/ko/matches/${match.id}`,
+      headers: { cookie },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().additionalData).toEqual({
+      homeScorers: "Mbappé 12'",
+      awayScorers: 'null',
+      stadiumName: 'MetLife Stadium',
+      stadiumCity: 'East Rutherford',
+      stadiumCountry: 'USA',
+      stadiumCapacity: 82500,
+    })
+  })
+
+  it('additionalData is null when match has none', async () => {
+    const server = await buildServer()
+    const { cookie } = await createAuthenticatedParticipant()
+
+    const match = await new MatchBuilder().withRoundSlug('FINAL').build()
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/ko/matches/${match.id}`,
+      headers: { cookie },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json().additionalData).toBeNull()
+  })
+
   it('myPrediction null when no prediction exists', async () => {
     const server = await buildServer()
     const { cookie } = await createAuthenticatedParticipant()

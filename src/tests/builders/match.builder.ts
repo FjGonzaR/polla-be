@@ -1,4 +1,4 @@
-import type { Match, RoundSlug } from '@prisma/client'
+import type { Match, Prisma, RoundSlug } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 
 const ROUND_DEFAULTS: Record<RoundSlug, { name: string; order: number; matchCount: number }> = {
@@ -22,6 +22,7 @@ export class MatchBuilder {
   private winnerTeamId: string | null = null
   private status: 'SCHEDULED' | 'LIVE' | 'FINISHED' = 'SCHEDULED'
   private externalMatchId: string | null = null
+  private additionalData: Prisma.InputJsonObject | null = null
 
   withScheduledAt(date: Date): this {
     this.scheduledAt = date
@@ -55,6 +56,11 @@ export class MatchBuilder {
 
   withStatus(status: 'SCHEDULED' | 'LIVE' | 'FINISHED'): this {
     this.status = status
+    return this
+  }
+
+  withAdditionalData(data: Prisma.InputJsonObject): this {
+    this.additionalData = data
     return this
   }
 
@@ -93,6 +99,7 @@ export class MatchBuilder {
         winnerTeamId: this.winnerTeamId,
         status: this.status,
         externalMatchId: this.externalMatchId,
+        ...(this.additionalData !== null && { additionalData: this.additionalData }),
       },
     })
   }

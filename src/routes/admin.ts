@@ -10,6 +10,7 @@ import {
   setTop8Teams,
   listParticipants,
   setGroupLocked,
+  resyncMatchSchedules,
 } from '../services/admin.service.js'
 
 export default async function adminRoutes(fastify: FastifyInstance) {
@@ -87,6 +88,11 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     }
     const result = await loadKoMatches(roundSlug, matches)
     return reply.code(201).send({ ok: true, ...result })
+  })
+
+  fastify.post('/matches/resync-schedules', adminGuard, async (_request, reply) => {
+    const result = await resyncMatchSchedules()
+    return reply.code(200).send(result)
   })
 
   fastify.put('/top8', adminGuard, async (request, reply) => {

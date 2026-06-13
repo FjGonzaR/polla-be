@@ -1,4 +1,5 @@
 import type { Group, Match, Team } from '@prisma/client'
+import { toAdditionalDataDto, type AdditionalDataDto } from './match-additional-data.mapper.js'
 
 export interface GroupMatchTeamDto {
   id: string
@@ -20,6 +21,7 @@ export interface GroupMatchDto {
   awayTeamLabel: string | null
   scoreHome: number | null
   scoreAway: number | null
+  additionalData: AdditionalDataDto | null
 }
 
 type TeamWithGroup = Team & { group: Group }
@@ -51,5 +53,6 @@ export function toGroupMatchDto(match: MatchWithTeams): GroupMatchDto {
     awayTeamLabel: match.awayTeamLabel ?? match.awayTeam?.name ?? null,
     scoreHome: match.scoreHome,
     scoreAway: match.scoreAway,
+    additionalData: toAdditionalDataDto(match.additionalData),
   }
 }

@@ -2,6 +2,8 @@ import { type RoundSlug, Prisma } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
+import { parseVenueLocalDate } from '../lib/venue-timezone.js'
+import { withUpdatedScorers } from '../lib/match-additional-data.js'
 import {
   persistKoMatchScoreEvents,
   persistPowerupKoMatchEvents,
@@ -156,13 +158,6 @@ interface ResolvedMatchData {
   additionalData: Prisma.InputJsonObject | null
 }
 
-function parseLocalDate(localDate: string): Date {
-  // Format from external API: "MM/DD/YYYY HH:mm"
-  const [datePart, timePart] = localDate.split(' ')
-  const [month, day, year] = datePart.split('/')
-  return new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${timePart}:00Z`)
-}
-
 async function resolveMatchFromApi(externalMatchId: string): Promise<ResolvedMatchData> {
   const game = await worldcupApi.getMatch(externalMatchId)
 
@@ -202,9 +197,43 @@ async function resolveMatchFromApi(externalMatchId: string): Promise<ResolvedMat
     awayTeamId: awayTeam?.id ?? null,
     homeTeamLabel: homeTeam ? null : (game.home_team_label ?? null),
     awayTeamLabel: awayTeam ? null : (game.away_team_label ?? null),
-    scheduledAt: parseLocalDate(game.local_date),
+    scheduledAt: parseVenueLocalDate(game.local_date, game.stadium_id),
     additionalData,
   }
+}
+
+/**
+ * Recomputes scheduledAt for every match with an externalMatchId by re-fetching the game
+ * and parsing local_date with the venue's timezone. Fixes data loaded before the timezone
+ * fix and also refreshes scorers. Re-runnable.
+ */
+export async function resyncMatchSchedules(): Promise<{ updated: number; total: number }> {
+  const matches = await prisma.match.findMany({
+    where: { externalMatchId: { not: null } },
+    select: { id: true, externalMatchId: true, additionalData: true },
+  })
+
+  let updated = 0
+  for (const match of matches) {
+    try {
+      const game = await worldcupApi.getMatch(match.externalMatchId!)
+      await prisma.match.update({
+        where: { id: match.id },
+        data: {
+          scheduledAt: parseVenueLocalDate(game.local_date, game.stadium_id),
+          additionalData: withUpdatedScorers(match.additionalData, game),
+        },
+      })
+      updated++
+    } catch (error) {
+      console.error(
+        `[resync-match-schedules] Error en match ${match.id}:`,
+        (error as Error).message,
+      )
+    }
+  }
+
+  return { updated, total: matches.length }
 }
 
 export async function loadKoMatches(

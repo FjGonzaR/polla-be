@@ -480,6 +480,34 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /admin/matches/resync-schedules:
+    post:
+      tags: [admin]
+      summary: Recalcula scheduledAt de los partidos desde la zona horaria de la sede
+      operationId: postAdminResyncSchedules
+      description: >
+        Para cada partido con externalMatchId, re-consulta el partido en la API externa y
+        recalcula scheduledAt convirtiendo local_date (hora local del estadio) a UTC según
+        la zona horaria de la sede. De paso refresca los goleadores en additionalData.
+        Re-ejecutable e idempotente. Útil para corregir datos cargados antes del fix de
+        zona horaria.
+      responses:
+        '200':
+          description: Recalculo completado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [updated, total]
+                properties:
+                  updated: { type: integer, description: "Partidos actualizados correctamente" }
+                  total:   { type: integer, description: "Partidos con externalMatchId revisados" }
+              example: { updated: 104, total: 104 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /admin/scoring-params/{key}:
     put:
       tags: [admin]
@@ -923,6 +951,13 @@ paths:
                     awayTeamLabel: "Estados Unidos"
                     scoreHome: 2
                     scoreAway: 1
+                    additionalData:
+                      homeScorers: "Giménez 23'; Lozano 67'"
+                      awayScorers: "Pulisic 80'"
+                      stadiumName: "Estadio Azteca"
+                      stadiumCity: "Ciudad de México"
+                      stadiumCountry: "México"
+                      stadiumCapacity: 87523
         '400':
           description: Query param date mal formado.
           content:
@@ -2105,6 +2140,21 @@ components:
           items:
             $ref: '#/components/schemas/Team'
 
+    MatchAdditionalData:
+      type: object
+      description: >
+        Datos complementarios del partido guardados en additionalData: goleadores
+        (refrescados en vivo por los crons sync-group-results / sync-ko-results) e
+        info del estadio (cargada por el admin). Cada campo puede ser null.
+      required: [homeScorers, awayScorers, stadiumName, stadiumCity, stadiumCountry, stadiumCapacity]
+      properties:
+        homeScorers:     { type: [string, 'null'], description: "Goleadores del local, tal como los entrega el API externo" }
+        awayScorers:     { type: [string, 'null'], description: "Goleadores del visitante" }
+        stadiumName:     { type: [string, 'null'] }
+        stadiumCity:     { type: [string, 'null'] }
+        stadiumCountry:  { type: [string, 'null'] }
+        stadiumCapacity: { type: [integer, 'null'] }
+
     GroupMatchTeam:
       type: object
       description: Equipo dentro de un partido de fase de grupos (versión reducida, informativa).
@@ -2123,7 +2173,7 @@ components:
         los actualice desde la API externa.
       required:
         [id, matchNumber, groupId, groupLabel, scheduledAt, status,
-         homeTeam, awayTeam, homeTeamLabel, awayTeamLabel, scoreHome, scoreAway]
+         homeTeam, awayTeam, homeTeamLabel, awayTeamLabel, scoreHome, scoreAway, additionalData]
       properties:
         id:          { type: string, format: uuid }
         matchNumber: { type: integer, description: "Número de partido del torneo" }
@@ -2146,6 +2196,10 @@ components:
         awayTeamLabel: { type: [string, 'null'], description: "Etiqueta del equipo visitante; cae al nombre del equipo si no hay etiqueta." }
         scoreHome:     { type: [integer, 'null'], description: "Goles local. Null hasta que el partido empiece." }
         scoreAway:     { type: [integer, 'null'], description: "Goles visitante. Null hasta que el partido empiece." }
+        additionalData:
+          oneOf:
+            - $ref: '#/components/schemas/MatchAdditionalData'
+            - type: 'null'
 
     GroupRanking:
       type: object
@@ -2366,6 +2420,10 @@ components:
             (LIVE o FINISHED). Oculto antes del inicio para no sesgar predicciones.
           oneOf:
             - $ref: '#/components/schemas/KoMatchStats'
+            - type: 'null'
+        additionalData:
+          oneOf:
+            - $ref: '#/components/schemas/MatchAdditionalData'
             - type: 'null'
 
     KoMatchStats:

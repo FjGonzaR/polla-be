@@ -13,7 +13,20 @@ vi.mock('../../lib/worldcup-api.client.js', () => ({
   worldcupApi: { getMatch: mockGetMatch },
 }))
 
-const THREE_HOURS_AGO = new Date(Date.now() - 3 * 60 * 60 * 1000)
+const COLOMBIA_OFFSET_MS = 5 * 60 * 60 * 1000
+
+// A timestamp guaranteed to fall inside today's Colombia (UTC-5) day AND in the
+// past — the midpoint between today's Colombia midnight and now. Deterministic
+// regardless of when the suite runs (no flake near Colombia midnight).
+function todayInPlay(): Date {
+  const now = Date.now()
+  const col = new Date(now - COLOMBIA_OFFSET_MS)
+  const dayStart =
+    Date.UTC(col.getUTCFullYear(), col.getUTCMonth(), col.getUTCDate()) + COLOMBIA_OFFSET_MS
+  return new Date(Math.floor((dayStart + now) / 2))
+}
+
+const TODAY_IN_PLAY = todayInPlay()
 
 function apiMatch(overrides: Partial<WorldCupMatch> = {}): WorldCupMatch {
   return {
@@ -45,7 +58,7 @@ describe('syncGroupResults', () => {
     const match = await new MatchBuilder()
       .withRoundSlug('GROUP')
       .withExternalMatchId('ext-group-1')
-      .withScheduledAt(THREE_HOURS_AGO)
+      .withScheduledAt(TODAY_IN_PLAY)
       .build()
 
     mockGetMatch.mockResolvedValue(apiMatch({ home_score: '3', away_score: '1' }))
@@ -73,7 +86,7 @@ describe('syncGroupResults', () => {
       .withHomeTeamId(home.id)
       .withAwayTeamId(away.id)
       .withExternalMatchId('ext-group-standings')
-      .withScheduledAt(THREE_HOURS_AGO)
+      .withScheduledAt(TODAY_IN_PLAY)
       .build()
 
     mockGetMatch.mockResolvedValue(apiMatch({ home_score: '2', away_score: '0' }))
@@ -90,7 +103,7 @@ describe('syncGroupResults', () => {
     const match = await new MatchBuilder()
       .withRoundSlug('GROUP')
       .withExternalMatchId('ext-group-live')
-      .withScheduledAt(THREE_HOURS_AGO)
+      .withScheduledAt(TODAY_IN_PLAY)
       .build()
 
     mockGetMatch.mockResolvedValue(
@@ -111,7 +124,7 @@ describe('syncGroupResults', () => {
     const koMatch = await new MatchBuilder()
       .withRoundSlug('R32')
       .withExternalMatchId('ext-ko')
-      .withScheduledAt(THREE_HOURS_AGO)
+      .withScheduledAt(TODAY_IN_PLAY)
       .build()
 
     await syncGroupResults()
@@ -131,7 +144,7 @@ describe('syncGroupResults', () => {
       .withHomeTeamId(home.id)
       .withAwayTeamId(away.id)
       .withExternalMatchId('ext-notstarted')
-      .withScheduledAt(THREE_HOURS_AGO)
+      .withScheduledAt(TODAY_IN_PLAY)
       .build()
 
     mockGetMatch.mockResolvedValue(
@@ -149,16 +162,81 @@ describe('syncGroupResults', () => {
     expect(standings.every((s) => s.pts === 0 && s.matchesPlayed === 0)).toBe(true)
   })
 
-  it('match scheduled <120min ago → getMatch never called', async () => {
-    const THIRTY_MIN_AGO = new Date(Date.now() - 30 * 60 * 1000)
+  it('match from a previous day → getMatch never called (outside today window)', async () => {
+    const TWO_DAYS_AGO = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
     await new MatchBuilder()
       .withRoundSlug('GROUP')
-      .withExternalMatchId('ext-too-recent')
-      .withScheduledAt(THIRTY_MIN_AGO)
+      .withExternalMatchId('ext-yesterday')
+      .withScheduledAt(TWO_DAYS_AGO)
       .build()
 
     await syncGroupResults()
 
     expect(mockGetMatch).not.toHaveBeenCalled()
+  })
+
+  it('match scheduled later today (not kicked off yet) → getMatch never called', async () => {
+    const IN_3_HOURS = new Date(Date.now() + 3 * 60 * 60 * 1000)
+    await new MatchBuilder()
+      .withRoundSlug('GROUP')
+      .withExternalMatchId('ext-future')
+      .withScheduledAt(IN_3_HOURS)
+      .build()
+
+    await syncGroupResults()
+
+    expect(mockGetMatch).not.toHaveBeenCalled()
+  })
+
+  it('finished match → scorers updated in additionalData, stadium info preserved', async () => {
+    const match = await new MatchBuilder()
+      .withRoundSlug('GROUP')
+      .withExternalMatchId('ext-group-scorers')
+      .withScheduledAt(TODAY_IN_PLAY)
+      .withAdditionalData({
+        homeScorers: 'null',
+        awayScorers: 'null',
+        stadiumName: 'Estadio Azteca',
+        stadiumCity: 'Ciudad de México',
+        stadiumCountry: 'México',
+        stadiumCapacity: 87523,
+      })
+      .build()
+
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ home_score: '2', away_score: '1', home_scorers: "Messi 23'; Di María 67'", away_scorers: "Kane 80'" }),
+    )
+
+    await syncGroupResults()
+
+    const updated = await prisma.match.findUnique({ where: { id: match.id } })
+    const data = updated?.additionalData as Record<string, unknown>
+    expect(data.homeScorers).toBe("Messi 23'; Di María 67'")
+    expect(data.awayScorers).toBe("Kane 80'")
+    // Stadium fields untouched.
+    expect(data.stadiumName).toBe('Estadio Azteca')
+    expect(data.stadiumCapacity).toBe(87523)
+  })
+
+  it('live match → scorers also updated in additionalData', async () => {
+    const match = await new MatchBuilder()
+      .withRoundSlug('GROUP')
+      .withExternalMatchId('ext-group-scorers-live')
+      .withScheduledAt(TODAY_IN_PLAY)
+      .withAdditionalData({ stadiumName: 'Wembley' })
+      .build()
+
+    mockGetMatch.mockResolvedValue(
+      apiMatch({ finished: 'FALSE', time_elapsed: '52', home_score: '1', away_score: '0', home_scorers: "Yamal 50'", away_scorers: 'null' }),
+    )
+
+    await syncGroupResults()
+
+    const updated = await prisma.match.findUnique({ where: { id: match.id } })
+    const data = updated?.additionalData as Record<string, unknown>
+    expect(updated?.status).toBe('LIVE')
+    expect(data.homeScorers).toBe("Yamal 50'")
+    expect(data.awayScorers).toBe('null')
+    expect(data.stadiumName).toBe('Wembley')
   })
 })

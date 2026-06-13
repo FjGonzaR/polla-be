@@ -152,6 +152,8 @@ describe('POST /admin/ko/matches', () => {
       stadiumCountry: 'United States',
       stadiumCapacity: 70000,
     })
+    // local_date "06/28/2026 12:00" at SoFi (stadium 16, LA PDT UTC-7) → 19:00Z.
+    expect(match?.scheduledAt.toISOString()).toBe('2026-06-28T19:00:00.000Z')
   })
 
   it('API-fetch mode TBD match — home_team_id=0 → uses team labels from API', async () => {
