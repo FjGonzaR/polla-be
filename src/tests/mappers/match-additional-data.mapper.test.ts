@@ -23,6 +23,15 @@ describe('parseScorersField', () => {
     })
   })
 
+  it('handles typographic (smart) quotes from the API', () => {
+    // Stored with “ ” (U+201C/U+201D) instead of ASCII double quotes.
+    const result = parseScorersField(`{“J. Quiñones 9'”,”R. Jiménez 67'”}`)
+    expect(result).toEqual([
+      { player: 'J. Quiñones', minute: 9, stoppage: null, ownGoal: false, penalty: false, display: "9'" },
+      { player: 'R. Jiménez', minute: 67, stoppage: null, ownGoal: false, penalty: false, display: "67'" },
+    ])
+  })
+
   it('detects penalties', () => {
     const [scorer] = parseScorersField(`{"H. Kane 60'(P)"}`)
     expect(scorer).toMatchObject({ player: 'H. Kane', minute: 60, penalty: true, ownGoal: false, display: "60' (P)" })

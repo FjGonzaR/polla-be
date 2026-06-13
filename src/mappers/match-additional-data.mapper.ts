@@ -29,6 +29,18 @@ function num(value: unknown): number | null {
 // "<player> <minute>'[+<stoppage>']?[(<marker>)]?"
 const SCORER_REGEX = /^(.*?)\s+(\d+)'(?:\+(\d+)')?(?:\s*\(([^)]+)\))?$/
 
+// The external API sometimes uses typographic (smart) quotes/apostrophes instead of ASCII;
+// normalize them so parsing is consistent.
+function normalizeQuotes(s: string): string {
+  return s.replace(/[“”„‟]/g, '"').replace(/[‘’‚‛]/g, "'")
+}
+
+// Strips wrapping double quotes left around an element (never apostrophes — the minute
+// marker uses a trailing apostrophe, e.g. 45').
+function stripWrappingQuotes(s: string): string {
+  return s.replace(/^"+/, '').replace(/"+$/, '').trim()
+}
+
 // Splits the external API's Postgres-array literal of scorers into raw elements.
 function splitScorerElements(raw: string): string[] {
   let s = raw.trim()
@@ -39,12 +51,12 @@ function splitScorerElements(raw: string): string[] {
 
   return s
     .split(/[;,]/)
-    .map((x) => x.trim())
+    .map((x) => stripWrappingQuotes(x))
     .filter((x) => x.length > 0)
 }
 
 function parseScorerElement(element: string): ScorerDto {
-  const trimmed = element.trim()
+  const trimmed = stripWrappingQuotes(element)
   const match = SCORER_REGEX.exec(trimmed)
 
   if (!match) {
@@ -71,7 +83,7 @@ function parseScorerElement(element: string): ScorerDto {
  */
 export function parseScorersField(raw: string | null | undefined): ScorerDto[] {
   if (raw == null) return []
-  const trimmed = raw.trim()
+  const trimmed = normalizeQuotes(raw.trim())
   if (trimmed.length === 0 || trimmed === 'null') return []
 
   return splitScorerElements(trimmed).map(parseScorerElement)
