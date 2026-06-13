@@ -59,7 +59,7 @@ describe('GET /groups/matches', () => {
       .withHomeTeamId(home.id)
       .withScheduledAt(new Date('2026-06-14T18:00:00.000Z'))
       .withAdditionalData({
-        homeScorers: "Yamal 50'",
+        homeScorers: `{"Yamal 50'","Pedri 72'(P)"}`,
         awayScorers: 'null',
         stadiumName: 'Estadio Azteca',
         stadiumCapacity: 87523,
@@ -77,13 +77,16 @@ describe('GET /groups/matches', () => {
     expect(res.statusCode).toBe(200)
     const { data } = res.json()
     expect(data[0].additionalData).toMatchObject({
-      homeScorers: "Yamal 50'",
-      awayScorers: 'null',
       stadiumName: 'Estadio Azteca',
       stadiumCapacity: 87523,
       stadiumCity: null,
       stadiumCountry: null,
+      awayScorers: [],
     })
+    expect(data[0].additionalData.homeScorers).toEqual([
+      { player: 'Yamal', minute: 50, stoppage: null, ownGoal: false, penalty: false, display: "50'" },
+      { player: 'Pedri', minute: 72, stoppage: null, ownGoal: false, penalty: true, display: "72' (P)" },
+    ])
     expect(data[1].additionalData).toBeNull()
   })
 

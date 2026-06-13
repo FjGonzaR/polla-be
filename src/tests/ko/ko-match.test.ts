@@ -108,7 +108,7 @@ describe('GET /ko/matches/:matchId', () => {
     const match = await new MatchBuilder()
       .withRoundSlug('FINAL')
       .withAdditionalData({
-        homeScorers: "Mbappé 12'",
+        homeScorers: `{"Mbappé 12'"}`,
         awayScorers: 'null',
         stadiumName: 'MetLife Stadium',
         stadiumCity: 'East Rutherford',
@@ -125,8 +125,10 @@ describe('GET /ko/matches/:matchId', () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.json().additionalData).toEqual({
-      homeScorers: "Mbappé 12'",
-      awayScorers: 'null',
+      homeScorers: [
+        { player: 'Mbappé', minute: 12, stoppage: null, ownGoal: false, penalty: false, display: "12'" },
+      ],
+      awayScorers: [],
       stadiumName: 'MetLife Stadium',
       stadiumCity: 'East Rutherford',
       stadiumCountry: 'USA',

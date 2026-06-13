@@ -952,8 +952,11 @@ paths:
                     scoreHome: 2
                     scoreAway: 1
                     additionalData:
-                      homeScorers: "Giménez 23'; Lozano 67'"
-                      awayScorers: "Pulisic 80'"
+                      homeScorers:
+                        - { player: "Giménez", minute: 23, stoppage: null, ownGoal: false, penalty: false, display: "23'" }
+                        - { player: "Lozano", minute: 67, stoppage: null, ownGoal: false, penalty: false, display: "67'" }
+                      awayScorers:
+                        - { player: "Pulisic", minute: 80, stoppage: null, ownGoal: false, penalty: false, display: "80'" }
                       stadiumName: "Estadio Azteca"
                       stadiumCity: "Ciudad de México"
                       stadiumCountry: "México"
@@ -2140,16 +2143,35 @@ components:
           items:
             $ref: '#/components/schemas/Team'
 
+    Scorer:
+      type: object
+      description: Un gol, parseado del string crudo del API a estructura.
+      required: [player, minute, stoppage, ownGoal, penalty, display]
+      properties:
+        player:   { type: string, description: "Nombre del goleador, ej: F. Balogun" }
+        minute:   { type: [integer, 'null'], description: "Minuto base (null si el elemento no se pudo parsear)" }
+        stoppage: { type: [integer, 'null'], description: "Tiempo añadido, ej: 5 para 45'+5'" }
+        ownGoal:  { type: boolean, description: "true si fue autogol (OG)" }
+        penalty:  { type: boolean, description: "true si fue de penal (P)" }
+        display:  { type: string, description: "Texto listo para render, ej: 45'+5' o 7' (OG)" }
+
     MatchAdditionalData:
       type: object
       description: >
         Datos complementarios del partido guardados en additionalData: goleadores
         (refrescados en vivo por los crons sync-group-results / sync-ko-results) e
-        info del estadio (cargada por el admin). Cada campo puede ser null.
+        info del estadio (cargada por el admin). Los goleadores se exponen ya parseados
+        como array de Scorer ([] si no hay). Los campos de estadio pueden ser null.
       required: [homeScorers, awayScorers, stadiumName, stadiumCity, stadiumCountry, stadiumCapacity]
       properties:
-        homeScorers:     { type: [string, 'null'], description: "Goleadores del local, tal como los entrega el API externo" }
-        awayScorers:     { type: [string, 'null'], description: "Goleadores del visitante" }
+        homeScorers:
+          type: array
+          description: "Goleadores del local (parseados; [] si no hay)"
+          items: { $ref: '#/components/schemas/Scorer' }
+        awayScorers:
+          type: array
+          description: "Goleadores del visitante (parseados; [] si no hay)"
+          items: { $ref: '#/components/schemas/Scorer' }
         stadiumName:     { type: [string, 'null'] }
         stadiumCity:     { type: [string, 'null'] }
         stadiumCountry:  { type: [string, 'null'] }
