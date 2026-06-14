@@ -5,8 +5,9 @@ import { recalculateGroupStandings } from "../services/group-standings.service.j
 import { withUpdatedScorers } from "../lib/match-additional-data.js";
 
 const COLOMBIA_OFFSET_MS = 5 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-// Start of the current Colombia (UTC-5) calendar day, expressed in UTC.
+// Start of the Colombia (UTC-5) calendar day for the given instant, expressed in UTC.
 function colombiaDayStart(now: Date): Date {
   const col = new Date(now.getTime() - COLOMBIA_OFFSET_MS);
   return new Date(
@@ -32,13 +33,15 @@ export async function syncGroupResults(): Promise<void> {
   try {
     const ahora = new Date();
 
-    // Only matches that may be in play right now: from today (Colombia day) and
-    // already kicked off. Captures live matches and stops dragging old fixtures.
+    // Matches from the last 2 Colombia days that have already kicked off.
+    // Using 2 days instead of 1 ensures yesterday's matches are recovered if
+    // the cron missed them (e.g. API was down or returned a transient error).
+    const twoDaysAgo = new Date(ahora.getTime() - DAY_MS);
     const partidos = await prisma.match.findMany({
       where: {
         status: { not: MatchStatus.FINISHED },
         externalMatchId: { not: null },
-        scheduledAt: { gte: colombiaDayStart(ahora), lte: ahora },
+        scheduledAt: { gte: colombiaDayStart(twoDaysAgo), lte: ahora },
         round: {
           slug: RoundSlug.GROUP,
         },
