@@ -64,7 +64,7 @@ describe('POST /admin/notifications/broadcast', () => {
 
     expect(mockSendWhatsappMessage).toHaveBeenCalledTimes(1)
     const text = mockSendWhatsappMessage.mock.calls[0][1] as string
-    expect(text).toBe('Mensaje libre del admin\n\n👉 https://app.paulpredice.com')
+    expect(text).toBe('Mensaje libre del admin\n\nhttps://app.paulpredice.com')
     expect(text).not.toContain('PaulPredice*')
     expect(text).not.toContain('posición')
   })

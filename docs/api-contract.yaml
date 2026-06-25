@@ -830,6 +830,90 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+  /admin/notifications/broadcast:
+    post:
+      tags: [admin]
+      summary: Envía una notificación masiva por WhatsApp a los participantes
+      operationId: postAdminNotificationsBroadcast
+      description: >
+        Envía un mensaje por WhatsApp a todos los participantes con teléfono registrado
+        (`hasPhone`). El cuerpo del mensaje lo escribe el admin dinámicamente; el `type`
+        define el armado: `GROUP_PHASE_LAST_ROUND_REMINDER` antepone la posición actual del
+        participante en el scoreboard, y `GENERIC` envía el mensaje tal cual. En ambos casos
+        se agrega automáticamente el link de la app al final. Opcionalmente `participantIds`
+        limita el envío a un subconjunto (útil para reenvíos o pruebas).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, message]
+              properties:
+                type:
+                  type: string
+                  enum: [GROUP_PHASE_LAST_ROUND_REMINDER, GENERIC]
+                  description: >
+                    GROUP_PHASE_LAST_ROUND_REMINDER antepone la línea de posición;
+                    GENERIC envía el mensaje sin prefijo.
+                message:
+                  type: string
+                  description: Cuerpo dinámico del mensaje (no incluir el link, se agrega solo).
+                participantIds:
+                  type: array
+                  description: >
+                    Opcional. Si se omite o va vacío, se envía a todos los participantes con
+                    teléfono. Si se provee, solo a esos (que tengan teléfono).
+                  items:
+                    type: string
+                    format: uuid
+            examples:
+              recordatorio_final:
+                summary: Recordatorio de instancias finales con posición
+                value:
+                  type: GROUP_PHASE_LAST_ROUND_REMINDER
+                  message: "Estamos en instancias finales del Mundial y cada partido mueve la tabla ⚽ ¡Las posiciones cambian a cada momento, así que no te confíes! Entra ya a revisar y ajustar tus pronósticos 👇"
+              generico:
+                summary: Mensaje genérico a todos
+                value:
+                  type: GENERIC
+                  message: "Recuerden que mañana arranca la fase de eliminación 🏆"
+              subconjunto:
+                summary: Envío solo a algunos participantes
+                value:
+                  type: GENERIC
+                  message: "Mensaje de prueba"
+                  participantIds: ["uuid-juan", "uuid-ana"]
+      responses:
+        '200':
+          description: Resumen del envío
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [total, sent, failed, skipped]
+                properties:
+                  total: { type: integer, description: "Participantes con teléfono a los que se intentó enviar" }
+                  sent: { type: integer }
+                  failed: { type: integer, description: "Envíos que lanzaron error" }
+                  skipped: { type: integer, description: "Omitidos por el servicio (p. ej. sin posición en el scoreboard)" }
+              example: { total: 18, sent: 18, failed: 0, skipped: 0 }
+        '400':
+          description: Mensaje vacío o tipo inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                mensaje_requerido:
+                  value: { code: "MESSAGE_REQUIRED", message: "message is required" }
+                tipo_invalido:
+                  value: { code: "INVALID_NOTIFICATION_TYPE", message: "Unknown notification type" }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   # ── GROUPS ──────────────────────────────────────────────────────────────────
 
   /groups:

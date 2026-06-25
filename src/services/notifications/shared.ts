@@ -2,7 +2,9 @@ import type { Prisma } from "@prisma/client";
 import { sendWhatsappMessage } from "../../lib/whatsapp.client.js";
 
 export const APP_URL = process.env.APP_URL ?? "https://app.paulpredice.com";
-export const appLinkFooter = (): string => `👉 ${APP_URL}`;
+// URL alone on its own line so WhatsApp auto-detects it as a clickable link
+// (an adjacent emoji/char before the URL breaks link detection).
+export const appLinkFooter = (): string => APP_URL;
 
 // Recipients = participants with a phone, optionally narrowed to an explicit id list.
 export function recipientWhere(
