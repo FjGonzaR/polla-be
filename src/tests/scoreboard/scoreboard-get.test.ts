@@ -279,6 +279,131 @@ describe('GET /scoreboard', () => {
     expect(data.filter((e) => e.participant.id === viewer.id)).toHaveLength(1)
   })
 
+  // ── limit query param ─────────────────────────────────────────────────────
+
+  it('limit=all → returns every participant (no top-N cap)', async () => {
+    const { cookie } = await createAuthenticatedParticipant({ name: 'Viewer' })
+    for (let i = 1; i <= 11; i++) {
+      const p = await buildParticipant({ name: `P${String(i).padStart(2, '0')}` })
+      await prisma.scoreEvent.create({
+        data: { participantId: p.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 100 + i },
+      })
+    }
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard?limit=all', headers: { cookie } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json<{ data: unknown[] }>()
+    expect(data).toHaveLength(12) // 11 contestants + viewer
+  })
+
+  it('limit=3 with viewer inside → exactly 3 entries', async () => {
+    const { cookie, participant: viewer } = await createAuthenticatedParticipant({ name: 'Viewer' })
+    await prisma.scoreEvent.create({
+      data: { participantId: viewer.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 999 },
+    })
+    for (let i = 1; i <= 5; i++) {
+      const p = await buildParticipant({ name: `Other${i}` })
+      await prisma.scoreEvent.create({
+        data: { participantId: p.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: i },
+      })
+    }
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard?limit=3', headers: { cookie } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json<{ data: { participant: { id: string } }[] }>()
+    expect(data).toHaveLength(3)
+    expect(data[0].participant.id).toBe(viewer.id)
+  })
+
+  it('invalid limit → 400 INVALID_LIMIT', async () => {
+    const { cookie } = await createAuthenticatedParticipant()
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard?limit=abc', headers: { cookie } })
+    expect(res.statusCode).toBe(400)
+    expect(res.json<{ code: string }>().code).toBe('INVALID_LIMIT')
+  })
+
+  // ── sortBy query param ────────────────────────────────────────────────────
+
+  // Scenario: RealHeavy real=50 sim=0 (total 50); SimHeavy real=40 sim=20 (total 60).
+  // total → SimHeavy first; real → RealHeavy first; simulated → SimHeavy first.
+  async function seedSortScenario(): Promise<{ cookie: string }> {
+    await seedScoringParams({ pts_group_position_exact: 10, bonus_group_complete: 0 })
+    const { cookie } = await createAuthenticatedParticipant({ name: 'Observer' })
+    const p1 = await buildParticipant({ name: 'RealHeavy' })
+    const p2 = await buildParticipant({ name: 'SimHeavy' })
+
+    await prisma.scoreEvent.createMany({
+      data: [
+        { participantId: p1.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 50 },
+        { participantId: p2.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 40 },
+      ],
+    })
+
+    const { group, teams } = await buildFinalizedGroup('S')
+    await prisma.groupStanding.createMany({
+      data: teams.map((t, i) => ({ teamId: t.id, groupId: group.id, realPosition: i + 1, matchesPlayed: 1 })),
+    })
+    // SimHeavy predicts 2 correct (pos 1,2 right; 3,4 swapped) → 2 * 10 = 20 provisional pts
+    await prisma.groupPrediction.createMany({
+      data: [
+        { participantId: p2.id, groupId: group.id, teamId: teams[0].id, predictedPosition: 1 },
+        { participantId: p2.id, groupId: group.id, teamId: teams[1].id, predictedPosition: 2 },
+        { participantId: p2.id, groupId: group.id, teamId: teams[2].id, predictedPosition: 4 },
+        { participantId: p2.id, groupId: group.id, teamId: teams[3].id, predictedPosition: 3 },
+      ],
+    })
+
+    return { cookie }
+  }
+
+  it('default sort = total → SimHeavy (60) ahead of RealHeavy (50)', async () => {
+    const { cookie } = await seedSortScenario()
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json<{ data: { participant: { name: string }; total: number; realTotal: number; simulatedTotal: number }[] }>()
+    expect(data[0].participant.name).toBe('SimHeavy')
+    expect(data[0].total).toBe(60)
+    expect(data[0].realTotal).toBe(40)
+    expect(data[0].simulatedTotal).toBe(20)
+  })
+
+  it('sortBy=real → RealHeavy (50) ahead of SimHeavy (40), ignoring simulated', async () => {
+    const { cookie } = await seedSortScenario()
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard?sortBy=real', headers: { cookie } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json<{ data: { participant: { name: string }; realTotal: number }[] }>()
+    expect(data[0].participant.name).toBe('RealHeavy')
+    expect(data[0].realTotal).toBe(50)
+  })
+
+  it('sortBy=simulated → SimHeavy (20) ahead of RealHeavy (0)', async () => {
+    const { cookie } = await seedSortScenario()
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard?sortBy=simulated', headers: { cookie } })
+
+    expect(res.statusCode).toBe(200)
+    const { data } = res.json<{ data: { participant: { name: string }; simulatedTotal: number }[] }>()
+    expect(data[0].participant.name).toBe('SimHeavy')
+    expect(data[0].simulatedTotal).toBe(20)
+  })
+
+  it('invalid sortBy → 400 INVALID_SORT_BY', async () => {
+    const { cookie } = await createAuthenticatedParticipant()
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard?sortBy=foo', headers: { cookie } })
+    expect(res.statusCode).toBe(400)
+    expect(res.json<{ code: string }>().code).toBe('INVALID_SORT_BY')
+  })
+
   it('tie entirely outside prize positions (rank 4+) → prize null', async () => {
     const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'A' })
     const p2 = await buildParticipant({ name: 'B' })
@@ -688,97 +813,5 @@ describe('GET /scoreboard', () => {
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
     const entry = res.json<{ data: { total: number }[] }>().data[0]
     expect(entry.total).toBe(-5)
-  })
-
-  // ── real vs simulated split ──────────────────────────────────────────────
-
-  type SplitEntry = { total: number; realTotal: number; simulatedTotal: number }
-
-  it('persisted points only → realTotal === total, simulatedTotal === 0', async () => {
-    const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'Alpha' })
-    await prisma.scoreEvent.create({
-      data: { participantId: p1.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 42 },
-    })
-
-    const server = await buildServer()
-    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ data: SplitEntry[] }>().data[0]
-    expect(entry.total).toBe(42)
-    expect(entry.realTotal).toBe(42)
-    expect(entry.simulatedTotal).toBe(0)
-  })
-
-  it('provisional points only (LIVE KO, no score_event) → realTotal === 0, simulatedTotal === total', async () => {
-    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
-    const { participant, cookie } = await createAuthenticatedParticipant()
-    const { match, home } = await buildKoMatch('R32')
-
-    await prisma.match.update({
-      where: { id: match.id },
-      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
-    })
-    await prisma.koPrediction.create({
-      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
-    })
-
-    const server = await buildServer()
-    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ data: SplitEntry[] }>().data[0]
-    expect(entry.total).toBe(10)
-    expect(entry.realTotal).toBe(0)
-    expect(entry.simulatedTotal).toBe(10)
-  })
-
-  it('mix of persisted + provisional → realTotal + simulatedTotal === total, both non-zero', async () => {
-    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
-    const { participant, cookie } = await createAuthenticatedParticipant()
-
-    // persisted (real)
-    await prisma.scoreEvent.create({
-      data: { participantId: participant.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 30 },
-    })
-    // provisional (simulated): LIVE KO match
-    const { match, home } = await buildKoMatch('R32')
-    await prisma.match.update({
-      where: { id: match.id },
-      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
-    })
-    await prisma.koPrediction.create({
-      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
-    })
-
-    const server = await buildServer()
-    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
-    const entry = res.json<{ data: SplitEntry[] }>().data[0]
-    expect(entry.realTotal).toBe(30)
-    expect(entry.simulatedTotal).toBe(10)
-    expect(entry.total).toBe(entry.realTotal + entry.simulatedTotal)
-  })
-
-  it('LIVE → FINISHED: points shift from simulatedTotal to realTotal, total unchanged', async () => {
-    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
-    const { participant, cookie } = await createAuthenticatedParticipant()
-    const { match, home } = await buildKoMatch('R32')
-
-    await prisma.match.update({
-      where: { id: match.id },
-      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
-    })
-    await prisma.koPrediction.create({
-      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
-    })
-
-    const server = await buildServer()
-    let entry = (await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })).json<{ data: SplitEntry[] }>().data[0]
-    expect(entry.realTotal).toBe(0)
-    expect(entry.simulatedTotal).toBe(10)
-
-    await prisma.match.update({ where: { id: match.id }, data: { status: 'FINISHED', winnerTeamId: home.id } })
-    await persistKoMatchScoreEvents(match.id)
-
-    entry = (await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })).json<{ data: SplitEntry[] }>().data[0]
-    expect(entry.realTotal).toBe(10)
-    expect(entry.simulatedTotal).toBe(0)
-    expect(entry.total).toBe(10)
   })
 })

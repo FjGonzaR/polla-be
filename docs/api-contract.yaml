@@ -1837,16 +1837,42 @@ paths:
   /scoreboard:
     get:
       tags: [scoreboard]
-      summary: Tabla de posiciones completa
+      summary: Tabla de posiciones
       operationId: getScoreboard
       description: >
-        Retorna todos los participantes ordenados por puntaje total descendente.
-        El puntaje se calcula on-demand al momento del request.
+        Retorna la tabla de posiciones. El puntaje se calcula on-demand al momento del request.
         Cada entrada separa realTotal (puntos oficiales ya persistidos) de simulatedTotal
         (puntos provisionales: KO en vivo y grupos consolidados no persistidos); total =
-        realTotal + simulatedTotal y es el valor usado para ordenar.
+        realTotal + simulatedTotal.
+        El criterio de orden lo define sortBy (total | real | simulated, default total); el
+        ranking, los empates y prize se calculan según ese criterio.
         prize se incluye para rank 1, 2 y 3. Null para el resto.
         Criterio de desempate: mayor cantidad de marcadores exactos acertados en KO.
+        El tamaño de la lista lo define limit (default 10); cuando el viewer queda fuera del
+        corte se agrega su entrada al final. Con limit=all se devuelven todos los participantes.
+      parameters:
+        - name: sortBy
+          in: query
+          required: false
+          description: Criterio de ordenamiento. Default total.
+          schema:
+            type: string
+            enum: [total, real, simulated]
+            default: total
+        - name: limit
+          in: query
+          required: false
+          description: >
+            Cantidad de participantes a devolver. Entero positivo o la cadena "all" para
+            devolver a todos. Default 10. Con un entero, si el viewer queda fuera del corte
+            su entrada se agrega al final.
+          schema:
+            oneOf:
+              - type: integer
+                minimum: 1
+              - type: string
+                enum: [all]
+            default: 10
       responses:
         '200':
           description: Tabla de posiciones
@@ -1891,6 +1917,17 @@ paths:
                     realTotal: 98
                     simulatedTotal: 0
                     prize: null
+        '400':
+          description: Parámetro sortBy o limit inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalidSortBy:
+                  value: { code: "INVALID_SORT_BY", message: "sortBy must be one of: total, real, simulated" }
+                invalidLimit:
+                  value: { code: "INVALID_LIMIT", message: "limit must be a positive integer or \"all\"" }
         '401':
           $ref: '#/components/responses/Unauthorized'
 
