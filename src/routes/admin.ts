@@ -12,6 +12,7 @@ import {
   setGroupLocked,
   resyncMatchSchedules,
 } from '../services/admin.service.js'
+import { sendBroadcast, type NotificationType } from '../services/notification.service.js'
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   const adminGuard = { preHandler: [fastify.authenticate, fastify.requireAdmin] }
@@ -111,5 +112,15 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   fastify.get('/participants', adminGuard, async (_request, reply) => {
     const data = await listParticipants()
     return reply.code(200).send({ data })
+  })
+
+  fastify.post('/notifications/broadcast', adminGuard, async (request, reply) => {
+    const { type, message, participantIds } = request.body as {
+      type?: NotificationType
+      message?: string
+      participantIds?: string[]
+    }
+    const result = await sendBroadcast(type as NotificationType, message ?? '', participantIds)
+    return reply.code(200).send(result)
   })
 }
