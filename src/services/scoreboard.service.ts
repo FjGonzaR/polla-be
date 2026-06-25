@@ -257,6 +257,8 @@ async function computeProvisionalGroupPoints(
 
 export async function getScoreboard(
   viewerParticipantId: string,
+  sortBy: "total" | "real" | "simulated" = "total",
+  limit: number | "all" = 10,
 ): Promise<{ updatedAt: Date; data: ScoreboardEntryDto[] }> {
   const [participants, scoreGroups, exactKoGroups] = await Promise.all([
     prisma.participant.findMany({
@@ -314,12 +316,19 @@ export async function getScoreboard(
     ]),
   );
 
+  const primaryMap =
+    sortBy === "real"
+      ? realMap
+      : sortBy === "simulated"
+        ? simulatedMap
+        : pointsMap;
+
   function compareByScoreThenExact(
     a: { id: string },
     b: { id: string },
   ): number {
     const ptsDiff =
-      Number(pointsMap.get(b.id) ?? 0) - Number(pointsMap.get(a.id) ?? 0);
+      Number(primaryMap.get(b.id) ?? 0) - Number(primaryMap.get(a.id) ?? 0);
     if (ptsDiff !== 0) return ptsDiff;
     return (exactKoMap.get(b.id) ?? 0) - (exactKoMap.get(a.id) ?? 0);
   }
@@ -333,8 +342,8 @@ export async function getScoreboard(
       const prev = sorted[i - 1];
       const curr = sorted[i];
       const samePts =
-        Number(pointsMap.get(prev.id) ?? 0) ===
-        Number(pointsMap.get(curr.id) ?? 0);
+        Number(primaryMap.get(prev.id) ?? 0) ===
+        Number(primaryMap.get(curr.id) ?? 0);
       const sameExact =
         (exactKoMap.get(prev.id) ?? 0) === (exactKoMap.get(curr.id) ?? 0);
       if (!samePts || !sameExact) rank = i + 1;
@@ -358,18 +367,20 @@ export async function getScoreboard(
     );
   });
 
-  const top10 = data.slice(0, 10);
-  const viewerInTop10 = top10.some(
-    (e) => e.participant.id === viewerParticipantId,
-  );
-  if (!viewerInTop10) {
+  if (limit === "all") {
+    return { updatedAt: new Date(), data };
+  }
+
+  const top = data.slice(0, limit);
+  const viewerInTop = top.some((e) => e.participant.id === viewerParticipantId);
+  if (!viewerInTop) {
     const viewerEntry = data.find(
       (e) => e.participant.id === viewerParticipantId,
     );
-    if (viewerEntry) top10.push(viewerEntry);
+    if (viewerEntry) top.push(viewerEntry);
   }
 
-  return { updatedAt: new Date(), data: top10 };
+  return { updatedAt: new Date(), data: top };
 }
 
 export async function getScoreboardBreakdown(
