@@ -291,19 +291,27 @@ export async function getScoreboard(
     computeProvisionalPowerupGroupPoints(participants),
   ]);
 
-  const pointsMap = new Map(
+  const realMap = new Map(
+    participants.map((p) => [p.id, persistedPointsMap.get(p.id) ?? 0]),
+  );
+  const simulatedMap = new Map(
     participants.map((p) => {
       const powerupGroup = provisionalPowerupGroupMap.get(p.id);
       return [
         p.id,
-        (persistedPointsMap.get(p.id) ?? 0) +
-          (provisionalPointsMap.get(p.id) ?? 0) +
+        (provisionalPointsMap.get(p.id) ?? 0) +
           (provisionalKoPointsMap.get(p.id) ?? 0) +
           (powerupGroup
             ? powerupGroup.darkHorse + powerupGroup.disappointment
             : 0),
       ];
     }),
+  );
+  const pointsMap = new Map(
+    participants.map((p) => [
+      p.id,
+      (realMap.get(p.id) ?? 0) + (simulatedMap.get(p.id) ?? 0),
+    ]),
   );
 
   function compareByScoreThenExact(
@@ -345,7 +353,8 @@ export async function getScoreboard(
       r,
       rankGroupSize.get(r) ?? 1,
       p,
-      Number(pointsMap.get(p.id) ?? 0),
+      Number(realMap.get(p.id) ?? 0),
+      Number(simulatedMap.get(p.id) ?? 0),
     );
   });
 

@@ -1842,6 +1842,9 @@ paths:
       description: >
         Retorna todos los participantes ordenados por puntaje total descendente.
         El puntaje se calcula on-demand al momento del request.
+        Cada entrada separa realTotal (puntos oficiales ya persistidos) de simulatedTotal
+        (puntos provisionales: KO en vivo y grupos consolidados no persistidos); total =
+        realTotal + simulatedTotal y es el valor usado para ordenar.
         prize se incluye para rank 1, 2 y 3. Null para el resto.
         Criterio de desempate: mayor cantidad de marcadores exactos acertados en KO.
       responses:
@@ -1867,18 +1870,26 @@ paths:
                   - rank: 1
                     participant: { id: "uuid-juan",  name: "Juan" }
                     total: 145
+                    realTotal: 139
+                    simulatedTotal: 6
                     prize: 700000
                   - rank: 2
                     participant: { id: "uuid-maria", name: "María" }
                     total: 132
+                    realTotal: 132
+                    simulatedTotal: 0
                     prize: 250000
                   - rank: 3
                     participant: { id: "uuid-luis",  name: "Luis" }
                     total: 118
+                    realTotal: 114
+                    simulatedTotal: 4
                     prize: 50000
                   - rank: 4
                     participant: { id: "uuid-pedro", name: "Pedro" }
                     total: 98
+                    realTotal: 98
+                    simulatedTotal: 0
                     prize: null
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -1892,6 +1903,9 @@ paths:
         Retorna el desglose detallado de puntaje de cualquier participante.
         Accesible para todos los participantes autenticados — puedes ver el
         breakdown propio o el de cualquier amigo.
+        Además de breakdown (combinado), incluye realBreakdown (solo puntos oficiales
+        persistidos) y simulatedBreakdown (solo puntos provisionales); por bucket,
+        breakdown = realBreakdown + simulatedBreakdown, y total = realTotal + simulatedTotal.
         tripleUsesRemaining refleja los usos de triple o nada restantes
         del participante consultado.
       parameters:
@@ -1912,12 +1926,26 @@ paths:
               example:
                 participant: { id: "uuid-juan", name: "Juan" }
                 total: 145
+                realTotal: 139
+                simulatedTotal: 6
                 breakdown:
                   groups: 42
                   thirds: 10
                   ko: 80
                   darkHorse: 16
                   disappointment: -3
+                realBreakdown:
+                  groups: 42
+                  thirds: 10
+                  ko: 74
+                  darkHorse: 16
+                  disappointment: -3
+                simulatedBreakdown:
+                  groups: 0
+                  thirds: 0
+                  ko: 6
+                  darkHorse: 0
+                  disappointment: 0
                 tripleUsesRemaining: 2
                 prize: 700000
         '404':
@@ -2607,7 +2635,13 @@ components:
             name: { type: string }
         total:
           type: integer
-          description: "Puntaje total acumulado"
+          description: "Puntaje total acumulado. Invariante: total = realTotal + simulatedTotal."
+        realTotal:
+          type: integer
+          description: "Puntos reales: solo resultados oficiales ya persistidos (grupos finalizados, partidos KO terminados, powerups consolidados)."
+        simulatedTotal:
+          type: integer
+          description: "Puntos simulados (provisionales): partidos KO en vivo y standings de grupo consolidados pero aún no persistidos."
         prize:
           type: [integer, 'null']
           description: "Premio en COP. 700000 para rank 1, 250000 para rank 2, 50000 para rank 3. Null para rank 4 en adelante."
@@ -2624,9 +2658,16 @@ components:
             name: { type: string }
         total:
           type: integer
-          description: "Puntaje total acumulado"
+          description: "Puntaje total acumulado. Invariante: total = realTotal + simulatedTotal."
+        realTotal:
+          type: integer
+          description: "Puntos reales (solo persistidos/oficiales). Suma de realBreakdown."
+        simulatedTotal:
+          type: integer
+          description: "Puntos simulados (provisionales). Suma de simulatedBreakdown."
         breakdown:
           type: object
+          description: "Desglose combinado (real + simulado) por fase."
           required: [groups, thirds, ko, darkHorse, disappointment]
           properties:
             groups:
@@ -2644,6 +2685,26 @@ components:
             disappointment:
               type: integer
               description: "Puntos restados por rondas avanzadas de la decepción (valor negativo o cero)"
+        realBreakdown:
+          type: object
+          description: "Desglose solo de puntos reales (persistidos/oficiales). Misma forma que breakdown."
+          required: [groups, thirds, ko, darkHorse, disappointment]
+          properties:
+            groups:        { type: integer }
+            thirds:        { type: integer }
+            ko:            { type: integer }
+            darkHorse:     { type: integer }
+            disappointment: { type: integer }
+        simulatedBreakdown:
+          type: object
+          description: "Desglose solo de puntos simulados (provisionales). thirds siempre 0 (no tiene componente provisional)."
+          required: [groups, thirds, ko, darkHorse, disappointment]
+          properties:
+            groups:        { type: integer }
+            thirds:        { type: integer }
+            ko:            { type: integer }
+            darkHorse:     { type: integer }
+            disappointment: { type: integer }
         tripleUsesRemaining:
           type: integer
           minimum: 0
