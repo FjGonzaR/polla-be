@@ -531,4 +531,107 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(body.breakdown.darkHorse).toBe(0)
     expect(body.total).toBe(-5)
   })
+
+  // ── real vs simulated split ──────────────────────────────────────────────
+
+  type Buckets = { groups: number; thirds: number; ko: number; darkHorse: number; disappointment: number }
+  type SplitBody = {
+    total: number
+    realTotal: number
+    simulatedTotal: number
+    breakdown: Buckets
+    realBreakdown: Buckets
+    simulatedBreakdown: Buckets
+  }
+
+  it('persisted only → realBreakdown === breakdown, simulatedBreakdown all zero', async () => {
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    await prisma.scoreEvent.createMany({
+      data: [
+        { participantId: participant.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 12 },
+        { participantId: participant.id, paramKey: 'pts_third_correct', matchId: null, groupId: null, roundSlug: null, points: 8 },
+        { participantId: participant.id, paramKey: 'pts_ko_advances', matchId: null, groupId: null, roundSlug: 'R32', points: 10 },
+        { participantId: participant.id, paramKey: 'pts_disappointment_per_round', matchId: null, groupId: null, roundSlug: 'R32', points: -4 },
+      ],
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+    const body = res.json<SplitBody>()
+
+    expect(body.realBreakdown).toEqual(body.breakdown)
+    expect(body.simulatedBreakdown).toEqual({ groups: 0, thirds: 0, ko: 0, darkHorse: 0, disappointment: 0 })
+    expect(body.realTotal).toBe(body.total)
+    expect(body.simulatedTotal).toBe(0)
+  })
+
+  it('provisional only (group rung not persisted) → simulatedBreakdown carries values, realBreakdown all zero', async () => {
+    await seedScoringParams({ pts_dark_horse_per_round: 8, pts_disappointment_per_round: 5, scale_group: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    const grp = await prisma.group.create({ data: { name: 'Group SP', label: 'S' } })
+    const darkHorse = await prisma.team.create({ data: { name: 'DHs', code: 'DHS', groupId: grp.id } })
+    const disappoint = await prisma.team.create({ data: { name: 'DPs', code: 'DPS', groupId: grp.id } })
+    await prisma.groupStanding.create({ data: { teamId: darkHorse.id, groupId: grp.id, realPosition: 1, matchesPlayed: 3 } })
+    await prisma.groupStanding.create({ data: { teamId: disappoint.id, groupId: grp.id, realPosition: 2, matchesPlayed: 3 } })
+    await prisma.powerup.create({
+      data: { participantId: participant.id, darkHorseTeamId: darkHorse.id, disappointmentTeamId: disappoint.id },
+    })
+
+    // No persistPowerupGroupEvents → purely provisional (simulated)
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+    const body = res.json<SplitBody>()
+
+    expect(body.realBreakdown).toEqual({ groups: 0, thirds: 0, ko: 0, darkHorse: 0, disappointment: 0 })
+    expect(body.simulatedBreakdown.darkHorse).toBe(8)
+    expect(body.simulatedBreakdown.disappointment).toBe(-5)
+    expect(body.realTotal).toBe(0)
+    expect(body.simulatedTotal).toBe(3)
+    expect(body.total).toBe(3)
+  })
+
+  it('mix persisted + provisional → breakdown == real + simulated per bucket, thirds simulated always 0', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    // persisted (real): thirds + group
+    await prisma.scoreEvent.createMany({
+      data: [
+        { participantId: participant.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 9 },
+        { participantId: participant.id, paramKey: 'pts_third_correct', matchId: null, groupId: null, roundSlug: null, points: 6 },
+      ],
+    })
+    // provisional (simulated): LIVE KO match
+    const round = await prisma.round.create({ data: { name: 'R32', slug: 'R32', order: 1, matchCount: 16 } })
+    const grp = await prisma.group.create({ data: { name: 'KO mix', label: 'W' } })
+    const home = await prisma.team.create({ data: { name: 'WH', code: 'WHH', groupId: grp.id } })
+    const away = await prisma.team.create({ data: { name: 'WA', code: 'WAA', groupId: grp.id } })
+    const match = await prisma.match.create({
+      data: {
+        roundId: round.id, matchNumber: 1, scheduledAt: new Date('2026-07-01'),
+        homeTeamId: home.id, awayTeamId: away.id, scoreHome: 2, scoreAway: 0, status: 'LIVE',
+      },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: `/scoreboard/${participant.id}/breakdown`, headers: { cookie } })
+    const body = res.json<SplitBody>()
+
+    expect(body.realBreakdown.groups).toBe(9)
+    expect(body.realBreakdown.thirds).toBe(6)
+    expect(body.realBreakdown.ko).toBe(0)
+    expect(body.simulatedBreakdown.ko).toBe(10)
+    expect(body.simulatedBreakdown.thirds).toBe(0)
+
+    for (const k of ['groups', 'thirds', 'ko', 'darkHorse', 'disappointment'] as const) {
+      expect(body.breakdown[k]).toBe(body.realBreakdown[k] + body.simulatedBreakdown[k])
+    }
+    expect(body.realTotal).toBe(15)
+    expect(body.simulatedTotal).toBe(10)
+    expect(body.total).toBe(25)
+  })
 })

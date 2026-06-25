@@ -689,4 +689,96 @@ describe('GET /scoreboard', () => {
     const entry = res.json<{ data: { total: number }[] }>().data[0]
     expect(entry.total).toBe(-5)
   })
+
+  // ── real vs simulated split ──────────────────────────────────────────────
+
+  type SplitEntry = { total: number; realTotal: number; simulatedTotal: number }
+
+  it('persisted points only → realTotal === total, simulatedTotal === 0', async () => {
+    const { participant: p1, cookie } = await createAuthenticatedParticipant({ name: 'Alpha' })
+    await prisma.scoreEvent.create({
+      data: { participantId: p1.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 42 },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: SplitEntry[] }>().data[0]
+    expect(entry.total).toBe(42)
+    expect(entry.realTotal).toBe(42)
+    expect(entry.simulatedTotal).toBe(0)
+  })
+
+  it('provisional points only (LIVE KO, no score_event) → realTotal === 0, simulatedTotal === total', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: SplitEntry[] }>().data[0]
+    expect(entry.total).toBe(10)
+    expect(entry.realTotal).toBe(0)
+    expect(entry.simulatedTotal).toBe(10)
+  })
+
+  it('mix of persisted + provisional → realTotal + simulatedTotal === total, both non-zero', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    // persisted (real)
+    await prisma.scoreEvent.create({
+      data: { participantId: participant.id, paramKey: 'pts_group_position_exact', matchId: null, groupId: null, roundSlug: null, points: 30 },
+    })
+    // provisional (simulated): LIVE KO match
+    const { match, home } = await buildKoMatch('R32')
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: SplitEntry[] }>().data[0]
+    expect(entry.realTotal).toBe(30)
+    expect(entry.simulatedTotal).toBe(10)
+    expect(entry.total).toBe(entry.realTotal + entry.simulatedTotal)
+  })
+
+  it('LIVE → FINISHED: points shift from simulatedTotal to realTotal, total unchanged', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home } = await buildKoMatch('R32')
+
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 2, scoreAway: 0, status: 'LIVE' },
+    })
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 2, scoreAway: 0, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    const server = await buildServer()
+    let entry = (await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })).json<{ data: SplitEntry[] }>().data[0]
+    expect(entry.realTotal).toBe(0)
+    expect(entry.simulatedTotal).toBe(10)
+
+    await prisma.match.update({ where: { id: match.id }, data: { status: 'FINISHED', winnerTeamId: home.id } })
+    await persistKoMatchScoreEvents(match.id)
+
+    entry = (await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })).json<{ data: SplitEntry[] }>().data[0]
+    expect(entry.realTotal).toBe(10)
+    expect(entry.simulatedTotal).toBe(0)
+    expect(entry.total).toBe(10)
+  })
 })

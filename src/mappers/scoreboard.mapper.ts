@@ -2,19 +2,27 @@ export interface ScoreboardEntryDto {
   rank: number
   participant: { id: string; name: string }
   total: number
+  realTotal: number
+  simulatedTotal: number
   prize: number | null
+}
+
+export interface ScoreBreakdownBuckets {
+  groups: number
+  thirds: number
+  ko: number
+  darkHorse: number
+  disappointment: number
 }
 
 export interface ScoreBreakdownDto {
   participant: { id: string; name: string }
   total: number
-  breakdown: {
-    groups: number
-    thirds: number
-    ko: number
-    darkHorse: number
-    disappointment: number
-  }
+  realTotal: number
+  simulatedTotal: number
+  breakdown: ScoreBreakdownBuckets
+  realBreakdown: ScoreBreakdownBuckets
+  simulatedBreakdown: ScoreBreakdownBuckets
   tripleUsesRemaining: number
   prize: number | null
 }
@@ -39,12 +47,15 @@ export function toScoreboardEntryDto(
   rank: number,
   tieGroupSize: number,
   participant: { id: string; name: string },
-  total: number,
+  realTotal: number,
+  simulatedTotal: number,
 ): ScoreboardEntryDto {
   return {
     rank,
     participant,
-    total,
+    total: realTotal + simulatedTotal,
+    realTotal,
+    simulatedTotal,
     prize: computeSharedPrize(rank, tieGroupSize),
   }
 }
@@ -66,16 +77,41 @@ export function toScoreBreakdownDto(
   const sum = (keys: string[]) =>
     events.filter((e) => keys.includes(e.paramKey)).reduce((acc, e) => acc + e.points, 0)
 
-  const groups = sum(GROUP_PARAM_KEYS) + provisional.groups
-  const thirds = sum(THIRD_PARAM_KEYS)
-  const ko = sum(KO_PARAM_KEYS) + provisional.ko
-  const darkHorse = sum(DARK_HORSE_PARAM_KEYS) + provisional.darkHorse
-  const disappointment = sum(DISAPPOINTMENT_PARAM_KEYS) + provisional.disappointment
+  const realBreakdown: ScoreBreakdownBuckets = {
+    groups: sum(GROUP_PARAM_KEYS),
+    thirds: sum(THIRD_PARAM_KEYS),
+    ko: sum(KO_PARAM_KEYS),
+    darkHorse: sum(DARK_HORSE_PARAM_KEYS),
+    disappointment: sum(DISAPPOINTMENT_PARAM_KEYS),
+  }
+  const simulatedBreakdown: ScoreBreakdownBuckets = {
+    groups: provisional.groups,
+    thirds: 0,
+    ko: provisional.ko,
+    darkHorse: provisional.darkHorse,
+    disappointment: provisional.disappointment,
+  }
+  const breakdown: ScoreBreakdownBuckets = {
+    groups: realBreakdown.groups + simulatedBreakdown.groups,
+    thirds: realBreakdown.thirds + simulatedBreakdown.thirds,
+    ko: realBreakdown.ko + simulatedBreakdown.ko,
+    darkHorse: realBreakdown.darkHorse + simulatedBreakdown.darkHorse,
+    disappointment: realBreakdown.disappointment + simulatedBreakdown.disappointment,
+  }
+
+  const sumBuckets = (b: ScoreBreakdownBuckets) =>
+    b.groups + b.thirds + b.ko + b.darkHorse + b.disappointment
+  const realTotal = sumBuckets(realBreakdown)
+  const simulatedTotal = sumBuckets(simulatedBreakdown)
 
   return {
     participant,
-    total: groups + thirds + ko + darkHorse + disappointment,
-    breakdown: { groups, thirds, ko, darkHorse, disappointment },
+    total: realTotal + simulatedTotal,
+    realTotal,
+    simulatedTotal,
+    breakdown,
+    realBreakdown,
+    simulatedBreakdown,
     tripleUsesRemaining,
     prize,
   }

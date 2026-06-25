@@ -215,6 +215,10 @@ scale_final                → multiplicador para final (default: 4)
 - Se calcula on-demand al hacer `GET /scoreboard`.
 - El cron `recalculate-scores` corre a la 1AM y precalcula/cachea el resultado para evitar carga en hora pico.
 - Criterio de desempate: mayor cantidad de marcadores exactos (`ko_predictions` con score_home + score_away correctos).
+- Cada participante expone puntos **reales** y **simulados** por separado:
+  - **Real** (`realTotal` / `realBreakdown`): solo resultados oficiales ya persistidos en `score_event` (grupos finalizados, partidos KO terminados, powerups consolidados).
+  - **Simulado** (`simulatedTotal` / `simulatedBreakdown`): puntos provisionales calculados on-the-fly para partidos KO en vivo y standings de grupo consolidados pero aún no persistidos.
+  - Invariante: `total = realTotal + simulatedTotal`. El ranking y los premios se calculan sobre `total`.
 
 ---
 
