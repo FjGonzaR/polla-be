@@ -92,15 +92,18 @@ async function computeProvisionalKoPoints(
       const scoreCorrect =
         prediction.scoreHome === match.scoreHome &&
         prediction.scoreAway === match.scoreAway;
+      const fullyCorrect = scoreCorrect && advancesCorrect;
 
-      if (prediction.tripleActive && !scoreCorrect) continue;
+      // Triple or nothing: gambles on the full prediction (score AND winner). If
+      // either is wrong the whole match scores 0 — no partial exact-score credit.
+      if (prediction.tripleActive && !fullyCorrect) continue;
 
       const scaledAdvances = advancesCorrect
         ? Math.round(ptsAdvances * scaleFactor)
         : 0;
       const scaledExact = scoreCorrect ? Math.round(ptsExact * scaleFactor) : 0;
       const tripleBonus =
-        scoreCorrect && prediction.tripleActive ? multTriple : 0;
+        fullyCorrect && prediction.tripleActive ? multTriple : 0;
 
       pts += scaledAdvances + scaledExact + tripleBonus;
     }

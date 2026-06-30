@@ -121,7 +121,7 @@ Private World Cup 2026 predictions pool (~20 participants, invite-only).
 
 **KO scoring nuance:** `winner_team_id` may differ from score (penalties). `pts_ko_advances` is awarded when `team_advances_id` matches `winner_team_id`. `pts_ko_exact_score` is awarded independently when the predicted score matches the regulation/ET score — it does NOT require `team_advances_id` to be correct (a correct scoreline still counts even if the penalty-shootout winner was missed).
 
-**Triple or nothing:** If `triple_active=true` and the exact score is missed → 0 pts for that match (including advances). "Exact score" here means the scoreline only, independent of who advances.
+**Triple or nothing:** If `triple_active=true`, the bet is on the FULL prediction — both the exact scoreline AND the advancing team must be correct. If either is wrong → 0 pts for that match (no partial exact-score credit). The score/advances decoupling above applies only to non-triple predictions.
 
 **Scoreboard:** Calculated on-demand at `GET /scoreboard`. Tiebreaker: most exact KO scores. Prizes: 800K / 300K / 100K COP for ranks 1–3.
 

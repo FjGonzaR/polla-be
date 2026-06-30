@@ -109,12 +109,15 @@ async function buildKoEvents(participantId: string): Promise<ScoreEventInput[]> 
     const scoreCorrect =
       prediction.scoreHome === match.scoreHome &&
       prediction.scoreAway === match.scoreAway
+    const fullyCorrect = scoreCorrect && advancesCorrect
 
-    if (prediction.tripleActive && !scoreCorrect) continue
+    // Triple or nothing: gambles on the full prediction (score AND winner). If
+    // either is wrong the whole match scores 0 — no partial exact-score credit.
+    if (prediction.tripleActive && !fullyCorrect) continue
 
     const earnedAdvances = advancesCorrect ? ptsAdvances : 0
     const earnedExact = scoreCorrect ? ptsExact : 0
-    const tripleBonus = scoreCorrect && prediction.tripleActive ? multTriple : 0
+    const tripleBonus = fullyCorrect && prediction.tripleActive ? multTriple : 0
     const scaledTotal = Math.round((earnedAdvances + earnedExact) * scaleFactor)
 
     if (earnedAdvances > 0 || scaledTotal > 0) {
@@ -269,12 +272,15 @@ export async function persistKoMatchScoreEvents(matchId: string): Promise<void> 
     const scoreCorrect =
       prediction.scoreHome === match.scoreHome &&
       prediction.scoreAway === match.scoreAway
+    const fullyCorrect = scoreCorrect && advancesCorrect
 
-    if (prediction.tripleActive && !scoreCorrect) continue
+    // Triple or nothing: gambles on the full prediction (score AND winner). If
+    // either is wrong the whole match scores 0 — no partial exact-score credit.
+    if (prediction.tripleActive && !fullyCorrect) continue
 
     const scaledAdvances = advancesCorrect ? Math.round(ptsAdvances * scaleFactor) : 0
     const scaledExact = scoreCorrect ? Math.round(ptsExact * scaleFactor) : 0
-    const tripleBonus = scoreCorrect && prediction.tripleActive ? multTriple : 0
+    const tripleBonus = fullyCorrect && prediction.tripleActive ? multTriple : 0
 
     if (scaledAdvances > 0) {
       events.push({ participantId: prediction.participantId, paramKey: 'pts_ko_advances', matchId, groupId: null, roundSlug, points: scaledAdvances })
