@@ -1,6 +1,10 @@
 import type { Team } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 
+// Monotonic counter guarantees a unique auto-group label per process, avoiding
+// random collisions on the Group.label unique constraint across many builds.
+let autoGroupCounter = 0
+
 export class TeamBuilder {
   private name = 'Team'
   private code = Math.random().toString(36).slice(2, 5).toUpperCase()
@@ -38,7 +42,10 @@ export class TeamBuilder {
       this.groupId ??
       (
         await prisma.group.create({
-          data: { label: Math.random().toString(36).slice(2, 4), name: 'Auto Group' },
+          data: {
+            label: `auto-${(autoGroupCounter++).toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+            name: 'Auto Group',
+          },
         })
       ).id
 
