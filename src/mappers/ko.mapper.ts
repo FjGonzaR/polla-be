@@ -32,6 +32,12 @@ export interface KoMyPredictionDto {
   pointsEarned: KoPointsEarnedDto | null
 }
 
+export interface KoSourceDto {
+  matchId: string
+  matchNumber: number
+  outcome: 'WINNER' | 'LOSER'
+}
+
 export interface KoMatchStatsDto {
   totalPredictions: number
   pctHomeWin: number
@@ -52,6 +58,8 @@ export interface KoMatchDto {
   awayTeam: KoTeamDto | null
   homeTeamLabel: string | null
   awayTeamLabel: string | null
+  homeSource: KoSourceDto | null
+  awaySource: KoSourceDto | null
   result: KoResultDto | null
   myPrediction: KoMyPredictionDto | null
   stats: KoMatchStatsDto | null
@@ -67,6 +75,8 @@ export interface KoRoundDto {
 type MatchWithTeams = Match & {
   homeTeam: Team | null
   awayTeam: Team | null
+  homeSourceMatch?: { id: string; matchNumber: number } | null
+  awaySourceMatch?: { id: string; matchNumber: number } | null
 }
 
 export interface KoFriendPredictionDto {
@@ -159,8 +169,24 @@ export function toKoMatchDto(
     status: match.status,
     homeTeam: match.homeTeam ? toKoTeamDto(match.homeTeam) : null,
     awayTeam: match.awayTeam ? toKoTeamDto(match.awayTeam) : null,
-    homeTeamLabel: match.homeTeam?.name ?? null,
-    awayTeamLabel: match.awayTeam?.name ?? null,
+    homeTeamLabel: match.homeTeam?.name ?? match.homeTeamLabel ?? null,
+    awayTeamLabel: match.awayTeam?.name ?? match.awayTeamLabel ?? null,
+    homeSource:
+      match.homeSourceMatch && match.homeSourceOutcome
+        ? {
+            matchId: match.homeSourceMatch.id,
+            matchNumber: match.homeSourceMatch.matchNumber,
+            outcome: match.homeSourceOutcome,
+          }
+        : null,
+    awaySource:
+      match.awaySourceMatch && match.awaySourceOutcome
+        ? {
+            matchId: match.awaySourceMatch.id,
+            matchNumber: match.awaySourceMatch.matchNumber,
+            outcome: match.awaySourceOutcome,
+          }
+        : null,
     result,
     myPrediction,
     stats,

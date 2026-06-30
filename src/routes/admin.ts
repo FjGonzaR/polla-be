@@ -11,6 +11,7 @@ import {
   listParticipants,
   setGroupLocked,
   resyncMatchSchedules,
+  linkBracketFeeders,
 } from '../services/admin.service.js'
 import { sendBroadcast, type NotificationType } from '../services/notification.service.js'
 
@@ -93,6 +94,11 @@ export default async function adminRoutes(fastify: FastifyInstance) {
 
   fastify.post('/matches/resync-schedules', adminGuard, async (_request, reply) => {
     const result = await resyncMatchSchedules()
+    return reply.code(200).send(result)
+  })
+
+  fastify.post('/ko/bracket/link', adminGuard, async (_request, reply) => {
+    const result = await linkBracketFeeders()
     return reply.code(200).send(result)
   })
 

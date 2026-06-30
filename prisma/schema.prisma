@@ -18,6 +18,11 @@ enum MatchStatus {
   FINISHED
 }
 
+enum SourceOutcome {
+  WINNER
+  LOSER
+}
+
 enum InvitationStatus {
   AVAILABLE
   USED
@@ -166,6 +171,14 @@ model Match {
   status          MatchStatus    @default(SCHEDULED)
   externalMatchId String?        @unique @map("external_match_id")
   additionalData  Json?          @map("additional_data")
+  homeSourceMatchId String?      @map("home_source_match_id")
+  homeSourceMatch   Match?       @relation("HomeSource", fields: [homeSourceMatchId], references: [id])
+  homeSourceOutcome SourceOutcome? @map("home_source_outcome")
+  awaySourceMatchId String?      @map("away_source_match_id")
+  awaySourceMatch   Match?       @relation("AwaySource", fields: [awaySourceMatchId], references: [id])
+  awaySourceOutcome SourceOutcome? @map("away_source_outcome")
+  feedsHome       Match[]        @relation("HomeSource")
+  feedsAway       Match[]        @relation("AwaySource")
   koPredictions   KoPrediction[]
   scoreEvents     ScoreEvent[]
   reminders       MatchReminder[]

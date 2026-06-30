@@ -1,4 +1,4 @@
-import type { Match, Prisma, RoundSlug } from '@prisma/client'
+import type { Match, Prisma, RoundSlug, SourceOutcome } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 
 const ROUND_DEFAULTS: Record<RoundSlug, { name: string; order: number; matchCount: number }> = {
@@ -23,6 +23,28 @@ export class MatchBuilder {
   private status: 'SCHEDULED' | 'LIVE' | 'FINISHED' = 'SCHEDULED'
   private externalMatchId: string | null = null
   private additionalData: Prisma.InputJsonObject | null = null
+  private matchNumber: number | null = null
+  private homeSourceMatchId: string | null = null
+  private homeSourceOutcome: SourceOutcome | null = null
+  private awaySourceMatchId: string | null = null
+  private awaySourceOutcome: SourceOutcome | null = null
+
+  withMatchNumber(matchNumber: number): this {
+    this.matchNumber = matchNumber
+    return this
+  }
+
+  withHomeSource(matchId: string, outcome: SourceOutcome = 'WINNER'): this {
+    this.homeSourceMatchId = matchId
+    this.homeSourceOutcome = outcome
+    return this
+  }
+
+  withAwaySource(matchId: string, outcome: SourceOutcome = 'WINNER'): this {
+    this.awaySourceMatchId = matchId
+    this.awaySourceOutcome = outcome
+    return this
+  }
 
   withScheduledAt(date: Date): this {
     this.scheduledAt = date
@@ -86,7 +108,7 @@ export class MatchBuilder {
       update: { lockedAt: this.roundLockedAt },
     })
 
-    const matchNumber = Math.floor(Math.random() * 100_000)
+    const matchNumber = this.matchNumber ?? Math.floor(Math.random() * 100_000)
     return prisma.match.create({
       data: {
         roundId: round.id,
@@ -100,6 +122,14 @@ export class MatchBuilder {
         status: this.status,
         externalMatchId: this.externalMatchId,
         ...(this.additionalData !== null && { additionalData: this.additionalData }),
+        ...(this.homeSourceMatchId !== null && {
+          homeSourceMatchId: this.homeSourceMatchId,
+          homeSourceOutcome: this.homeSourceOutcome,
+        }),
+        ...(this.awaySourceMatchId !== null && {
+          awaySourceMatchId: this.awaySourceMatchId,
+          awaySourceOutcome: this.awaySourceOutcome,
+        }),
       },
     })
   }

@@ -446,8 +446,8 @@ paths:
               type: object
               required: [scoreHome, scoreAway, winnerTeamId]
               properties:
-                scoreHome:    { type: integer, minimum: 0 }
-                scoreAway:    { type: integer, minimum: 0 }
+                scoreHome:    { type: integer, minimum: 0, description: "Goles local a 120'. Número entero JSON, no string (1, no \"1\")." }
+                scoreAway:    { type: integer, minimum: 0, description: "Goles visitante a 120'. Número entero JSON, no string (1, no \"1\")." }
                 winnerTeamId: { type: string, format: uuid }
             example:
               scoreHome: 1
@@ -503,6 +503,34 @@ paths:
                   updated: { type: integer, description: "Partidos actualizados correctamente" }
                   total:   { type: integer, description: "Partidos con externalMatchId revisados" }
               example: { updated: 104, total: 104 }
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/ko/bracket/link:
+    post:
+      tags: [admin]
+      summary: Cablea el árbol del bracket (homeSource / awaySource de cada partido KO)
+      operationId: postAdminKoBracketLink
+      description: >
+        Recorre el bracket estático del Mundial 2026 y, para cada partido de KO ya cargado,
+        fija homeSourceMatch / awaySourceMatch (con su outcome) hacia los partidos que
+        alimentan sus slots. Idempotente: se puede re-ejecutar tras cargar cada ronda.
+        Las entradas cuyos partidos fuente aún no existen se cuentan en `skipped` (no error),
+        así que conviene cargar todas las rondas (R32→FINAL) antes de ejecutarlo una vez.
+      responses:
+        '200':
+          description: Bracket cableado
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [linked, skipped]
+                properties:
+                  linked:  { type: integer, description: "Partidos a los que se les fijaron los feeders" }
+                  skipped: { type: integer, description: "Entradas omitidas por feeders/targets aún no cargados" }
+              example: { linked: 16, skipped: 0 }
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -2577,6 +2605,18 @@ components:
           description: "Placeholder cuando homeTeam es null, ej: Runner-up Group A"
         awayTeamLabel:
           type: [string, 'null']
+        homeSource:
+          description: >
+            Partido cuyo ganador (o perdedor) llena el slot local. Null en R32
+            (los slots vienen de grupos, ver homeTeamLabel). Permite al FE dibujar
+            el árbol del bracket conectando cada partido con el que lo alimenta.
+          oneOf:
+            - $ref: '#/components/schemas/KoSource'
+            - type: 'null'
+        awaySource:
+          oneOf:
+            - $ref: '#/components/schemas/KoSource'
+            - type: 'null'
         result:
           oneOf:
             - $ref: '#/components/schemas/KoResult'
@@ -2596,6 +2636,23 @@ components:
           oneOf:
             - $ref: '#/components/schemas/MatchAdditionalData'
             - type: 'null'
+
+    KoSource:
+      type: object
+      required: [matchId, matchNumber, outcome]
+      description: "Origen de un slot de KO: el ganador o perdedor de otro partido."
+      properties:
+        matchId:
+          type: string
+          format: uuid
+          description: "ID del partido que alimenta este slot (para conectar nodos del bracket)"
+        matchNumber:
+          type: integer
+          description: "Número del partido fuente (1–104)"
+        outcome:
+          type: string
+          enum: [WINNER, LOSER]
+          description: "WINNER en todas las rondas; LOSER solo en el partido por el 3er puesto (perdedores de semis)"
 
     KoMatchStats:
       type: object

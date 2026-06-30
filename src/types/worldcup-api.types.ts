@@ -32,6 +32,8 @@ export interface WorldCupMatch {
   away_team_id: string
   home_score: string
   away_score: string
+  home_penalty_score?: string
+  away_penalty_score?: string
   home_scorers?: string
   away_scorers?: string
   group?: string

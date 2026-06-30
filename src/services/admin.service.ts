@@ -4,6 +4,7 @@ import { AppError } from '../lib/errors.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
 import { parseVenueLocalDate } from '../lib/venue-timezone.js'
 import { withUpdatedScorers } from '../lib/match-additional-data.js'
+import { BRACKET_FEEDERS } from '../lib/bracket-structure.js'
 import {
   persistKoMatchScoreEvents,
   persistPowerupKoMatchEvents,
@@ -53,8 +54,53 @@ export async function setMatchResult(matchId: string, body: MatchResultInput): P
 
   await persistKoMatchScoreEvents(matchId)
   await persistPowerupKoMatchEvents(matchId)
+  await propagateMatchResult(matchId)
 
   return { ok: true, matchId, ...body }
+}
+
+/**
+ * Fills the downstream slots fed by a finished match, using the backward bracket
+ * links. The winner advances to slots whose source outcome is WINNER; the loser
+ * advances to LOSER slots (only the third-place match). Idempotent and a no-op
+ * if the match isn't finished, has no winner, or feeds nothing.
+ */
+export async function propagateMatchResult(matchId: string): Promise<void> {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    select: { homeTeamId: true, awayTeamId: true, winnerTeamId: true, status: true },
+  })
+  if (!match || match.status !== 'FINISHED' || match.winnerTeamId == null) return
+  if (match.homeTeamId == null || match.awayTeamId == null) return
+
+  const winnerId = match.winnerTeamId
+  const loserId = winnerId === match.homeTeamId ? match.awayTeamId : match.homeTeamId
+
+  const [homeFed, awayFed] = await Promise.all([
+    prisma.match.findMany({
+      where: { homeSourceMatchId: matchId },
+      select: { id: true, homeSourceOutcome: true },
+    }),
+    prisma.match.findMany({
+      where: { awaySourceMatchId: matchId },
+      select: { id: true, awaySourceOutcome: true },
+    }),
+  ])
+
+  await Promise.all([
+    ...homeFed.map((m) =>
+      prisma.match.update({
+        where: { id: m.id },
+        data: { homeTeamId: m.homeSourceOutcome === 'LOSER' ? loserId : winnerId },
+      }),
+    ),
+    ...awayFed.map((m) =>
+      prisma.match.update({
+        where: { id: m.id },
+        data: { awayTeamId: m.awaySourceOutcome === 'LOSER' ? loserId : winnerId },
+      }),
+    ),
+  ])
 }
 
 export async function setQualifiedThirds(teamIds: string[]): Promise<void> {
@@ -283,6 +329,45 @@ export async function loadKoMatches(
   }
 
   return { roundSlug, matchesCount: matches.length }
+}
+
+/**
+ * Wires the static KO bracket tree into the DB: for every match present in
+ * BRACKET_FEEDERS, sets homeSourceMatch / awaySourceMatch (and their outcome)
+ * to the matches feeding its slots. Idempotent — safe to re-run after loading
+ * each KO round. Feeder/target matches missing from the DB are skipped.
+ */
+export async function linkBracketFeeders(): Promise<{ linked: number; skipped: number }> {
+  const matches = await prisma.match.findMany({ select: { id: true, matchNumber: true } })
+  const idByNumber = new Map(matches.map((m) => [m.matchNumber, m.id]))
+
+  let linked = 0
+  let skipped = 0
+
+  for (const [matchNumberStr, feeders] of Object.entries(BRACKET_FEEDERS)) {
+    const matchNumber = Number(matchNumberStr)
+    const matchId = idByNumber.get(matchNumber)
+    const homeSourceId = idByNumber.get(feeders.home.matchNumber)
+    const awaySourceId = idByNumber.get(feeders.away.matchNumber)
+
+    if (!matchId || !homeSourceId || !awaySourceId) {
+      skipped++
+      continue
+    }
+
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        homeSourceMatchId: homeSourceId,
+        homeSourceOutcome: feeders.home.outcome,
+        awaySourceMatchId: awaySourceId,
+        awaySourceOutcome: feeders.away.outcome,
+      },
+    })
+    linked++
+  }
+
+  return { linked, skipped }
 }
 
 export async function setTop8Teams(teamIds: string[]): Promise<{ ok: boolean; teams: Top8TeamDto[] }> {

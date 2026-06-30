@@ -26,6 +26,8 @@ const SCALE_SLUG_MAP: Partial<Record<RoundSlug, string>> = {
 type MatchWithTeamsAndPredictions = Match & {
   homeTeam: Team | null
   awayTeam: Team | null
+  homeSourceMatch?: { id: string; matchNumber: number } | null
+  awaySourceMatch?: { id: string; matchNumber: number } | null
   koPredictions: KoPrediction[]
   predictionStat?: MatchPredictionStat | null
 }
@@ -133,6 +135,8 @@ export async function findKoMatches(
         include: {
           homeTeam: true,
           awayTeam: true,
+          homeSourceMatch: { select: { id: true, matchNumber: true } },
+          awaySourceMatch: { select: { id: true, matchNumber: true } },
           koPredictions: { where: { participantId } },
           predictionStat: true,
         },
@@ -304,6 +308,8 @@ export async function findKoMatch(matchId: string, participantId: string): Promi
       round: true,
       homeTeam: true,
       awayTeam: true,
+      homeSourceMatch: { select: { id: true, matchNumber: true } },
+      awaySourceMatch: { select: { id: true, matchNumber: true } },
       koPredictions: { where: { participantId } },
       predictionStat: true,
     },

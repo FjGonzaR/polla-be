@@ -2,8 +2,9 @@ import { MatchStatus, RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { worldcupApi } from '../lib/worldcup-api.client.js'
 import { persistKoMatchScoreEvents, persistPowerupKoMatchEvents } from '../services/score-calculation.service.js'
+import { propagateMatchResult } from '../services/admin.service.js'
 import { computeAndPersistMatchStats } from '../services/match-stats.service.js'
-import { withUpdatedScorers } from '../lib/match-additional-data.js'
+import { withUpdatedScorers, parsePenaltyScore } from '../lib/match-additional-data.js'
 
 async function persistMatchStatsSafe(matchId: string): Promise<void> {
   try {
@@ -51,10 +52,21 @@ export async function syncKoResults(): Promise<void> {
 
           let winnerTeamId: string | null = null
 
-          if (scoreHome !== scoreAway) {
-            const winnerExternalId =
-              scoreHome > scoreAway ? matchExterno.home_team_id : matchExterno.away_team_id
+          const penaltyHome = parsePenaltyScore(matchExterno.home_penalty_score)
+          const penaltyAway = parsePenaltyScore(matchExterno.away_penalty_score)
+          const decidedOnPenalties =
+            scoreHome === scoreAway && penaltyHome !== null && penaltyAway !== null
 
+          let winnerExternalId: string | null = null
+          if (scoreHome !== scoreAway) {
+            winnerExternalId =
+              scoreHome > scoreAway ? matchExterno.home_team_id : matchExterno.away_team_id
+          } else if (decidedOnPenalties) {
+            winnerExternalId =
+              penaltyHome! > penaltyAway! ? matchExterno.home_team_id : matchExterno.away_team_id
+          }
+
+          if (winnerExternalId !== null) {
             const winnerTeam = await prisma.team.findFirst({
               where: { externalTeamId: winnerExternalId },
             })
@@ -70,7 +82,7 @@ export async function syncKoResults(): Promise<void> {
           } else {
             console.info(
               `[sync-ko-results] Partido ${partido.id}: empate ${scoreHome}-${scoreAway} ` +
-                `— winnerTeamId requiere carga manual del admin (penales)`,
+                `sin penales en el API — winnerTeamId requiere carga manual del admin`,
             )
           }
 
@@ -88,6 +100,7 @@ export async function syncKoResults(): Promise<void> {
           await persistKoMatchScoreEvents(partido.id)
           await persistPowerupKoMatchEvents(partido.id)
           await persistMatchStatsSafe(partido.id)
+          await propagateMatchResult(partido.id)
 
           console.info(
             `[sync-ko-results] Partido ${partido.id} (${partido.round.slug}) ` +
