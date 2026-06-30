@@ -582,6 +582,39 @@ describe('GET /scoreboard', () => {
     expect(entry.total).toBe(10)
   })
 
+  it('KO exact score but wrong winner (penalties) → exact_score only, advances 0', async () => {
+    await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
+    const { participant, cookie } = await createAuthenticatedParticipant()
+    const { match, home, away } = await buildKoMatch('R32')
+
+    // 1-1, away advances on penalties
+    await prisma.match.update({
+      where: { id: match.id },
+      data: { scoreHome: 1, scoreAway: 1, winnerTeamId: away.id, status: 'FINISHED' },
+    })
+    // correct scoreline, wrong advancing team
+    await prisma.koPrediction.create({
+      data: { participantId: participant.id, matchId: match.id, scoreHome: 1, scoreAway: 1, teamAdvancesId: home.id, tripleActive: false },
+    })
+
+    await persistKoMatchScoreEvents(match.id)
+
+    const exactEvents = await prisma.scoreEvent.findMany({
+      where: { matchId: match.id, paramKey: 'pts_ko_exact_score' },
+    })
+    const advanceEvents = await prisma.scoreEvent.findMany({
+      where: { matchId: match.id, paramKey: 'pts_ko_advances' },
+    })
+    expect(exactEvents).toHaveLength(1)
+    expect(advanceEvents).toHaveLength(0)
+
+    const server = await buildServer()
+    const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
+    const entry = res.json<{ data: { total: number }[] }>().data[0]
+    // 6 * scale_r32(1) = 6
+    expect(entry.total).toBe(6)
+  })
+
   it('KO triple active + exact score → adds mult_triple bonus', async () => {
     await seedScoringParams({ pts_ko_advances: 4, pts_ko_exact_score: 6, mult_triple: 3, scale_r32: 1 })
     const { participant, cookie } = await createAuthenticatedParticipant()

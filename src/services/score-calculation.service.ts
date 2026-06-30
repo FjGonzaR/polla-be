@@ -104,16 +104,17 @@ async function buildKoEvents(participantId: string): Promise<ScoreEventInput[]> 
     const scaleFactor = await getParam(scaleSlug)
 
     const advancesCorrect = prediction.teamAdvancesId === match.winnerTeamId
-    const exactCorrect =
-      advancesCorrect &&
+    // Exact score is independent of who advances: nailing the regulation/ET
+    // scoreline counts even if the penalty-shootout winner was missed.
+    const scoreCorrect =
       prediction.scoreHome === match.scoreHome &&
       prediction.scoreAway === match.scoreAway
 
-    if (prediction.tripleActive && !exactCorrect) continue
+    if (prediction.tripleActive && !scoreCorrect) continue
 
     const earnedAdvances = advancesCorrect ? ptsAdvances : 0
-    const earnedExact = exactCorrect ? ptsExact : 0
-    const tripleBonus = exactCorrect && prediction.tripleActive ? multTriple : 0
+    const earnedExact = scoreCorrect ? ptsExact : 0
+    const tripleBonus = scoreCorrect && prediction.tripleActive ? multTriple : 0
     const scaledTotal = Math.round((earnedAdvances + earnedExact) * scaleFactor)
 
     if (earnedAdvances > 0 || scaledTotal > 0) {
@@ -263,16 +264,17 @@ export async function persistKoMatchScoreEvents(matchId: string): Promise<void> 
 
   for (const prediction of predictions) {
     const advancesCorrect = prediction.teamAdvancesId === match.winnerTeamId
-    const exactCorrect =
-      advancesCorrect &&
+    // Exact score is independent of who advances: nailing the regulation/ET
+    // scoreline counts even if the penalty-shootout winner was missed.
+    const scoreCorrect =
       prediction.scoreHome === match.scoreHome &&
       prediction.scoreAway === match.scoreAway
 
-    if (prediction.tripleActive && !exactCorrect) continue
+    if (prediction.tripleActive && !scoreCorrect) continue
 
     const scaledAdvances = advancesCorrect ? Math.round(ptsAdvances * scaleFactor) : 0
-    const scaledExact = exactCorrect ? Math.round(ptsExact * scaleFactor) : 0
-    const tripleBonus = exactCorrect && prediction.tripleActive ? multTriple : 0
+    const scaledExact = scoreCorrect ? Math.round(ptsExact * scaleFactor) : 0
+    const tripleBonus = scoreCorrect && prediction.tripleActive ? multTriple : 0
 
     if (scaledAdvances > 0) {
       events.push({ participantId: prediction.participantId, paramKey: 'pts_ko_advances', matchId, groupId: null, roundSlug, points: scaledAdvances })

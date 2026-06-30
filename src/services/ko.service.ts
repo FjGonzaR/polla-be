@@ -72,12 +72,13 @@ async function buildPointsEarned(
   ])
 
   const advancesCorrect = prediction.teamAdvancesId === match.winnerTeamId
-  const exactCorrect =
-    advancesCorrect &&
+  // Exact score is independent of who advances: nailing the regulation/ET
+  // scoreline counts even if the penalty-shootout winner was missed.
+  const scoreCorrect =
     prediction.scoreHome === match.scoreHome &&
     prediction.scoreAway === match.scoreAway
 
-  if (prediction.tripleActive && !exactCorrect) {
+  if (prediction.tripleActive && !scoreCorrect) {
     return {
       pts_ko_advances: 0,
       pts_ko_exact_score: 0,
@@ -89,8 +90,8 @@ async function buildPointsEarned(
   }
 
   const earnedAdvances = advancesCorrect ? ptsAdvances : 0
-  const earnedExact = exactCorrect ? ptsExact : 0
-  const tripleBonus = exactCorrect && prediction.tripleActive ? multTriple : 0
+  const earnedExact = scoreCorrect ? ptsExact : 0
+  const tripleBonus = scoreCorrect && prediction.tripleActive ? multTriple : 0
   const total = Math.round((earnedAdvances + earnedExact) * scaleFactor) + tripleBonus
 
   return {

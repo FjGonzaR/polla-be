@@ -2544,7 +2544,7 @@ components:
                   description: "Puntos por acertar quién avanza, independiente del marcador"
                 pts_ko_exact_score:
                   type: integer
-                  description: "Puntos por marcador exacto a 120'"
+                  description: "Puntos por marcador exacto a 120', independiente de quién avanza (cuenta aunque se falle el ganador por penales)"
                 mult_triple:
                   type: integer
                   description: "Puntos adicionales por triple o nada. 0 si no estaba activo o no acertó"

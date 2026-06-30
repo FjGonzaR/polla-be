@@ -87,24 +87,20 @@ async function computeProvisionalKoPoints(
       const advancesCorrect =
         provisionalWinnerId !== null &&
         prediction.teamAdvancesId === provisionalWinnerId;
-      const scoreMatchesPrediction =
+      // Exact score is independent of who advances (matches final scoring logic):
+      // a correct scoreline counts even if the penalty-shootout winner was missed.
+      const scoreCorrect =
         prediction.scoreHome === match.scoreHome &&
         prediction.scoreAway === match.scoreAway;
 
-      // During a tie, credit the score optimistically (advancing team TBD via penalties).
-      // During a non-tie, require advances-correct too, matching final scoring logic.
-      const exactCorrect = isTie
-        ? scoreMatchesPrediction
-        : advancesCorrect && scoreMatchesPrediction;
-
-      if (prediction.tripleActive && !exactCorrect) continue;
+      if (prediction.tripleActive && !scoreCorrect) continue;
 
       const scaledAdvances = advancesCorrect
         ? Math.round(ptsAdvances * scaleFactor)
         : 0;
-      const scaledExact = exactCorrect ? Math.round(ptsExact * scaleFactor) : 0;
+      const scaledExact = scoreCorrect ? Math.round(ptsExact * scaleFactor) : 0;
       const tripleBonus =
-        exactCorrect && prediction.tripleActive ? multTriple : 0;
+        scoreCorrect && prediction.tripleActive ? multTriple : 0;
 
       pts += scaledAdvances + scaledExact + tripleBonus;
     }
