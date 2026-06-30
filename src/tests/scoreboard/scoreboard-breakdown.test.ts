@@ -255,8 +255,8 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     })
 
     const body = res.json()
-    // (4 + 6) * 1 = 10 scaled, + 3 triple bonus = 13
-    expect(body.breakdown.ko).toBe(13)
+    // (4 + 6) * 1 = 10 scaled, tripled → 10 * 3 = 30
+    expect(body.breakdown.ko).toBe(30)
   })
 
   it('KO triple active + wrong score → breakdown.ko = 0 (triple-or-nothing penalty)', async () => {

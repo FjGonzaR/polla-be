@@ -117,19 +117,18 @@ async function buildKoEvents(participantId: string): Promise<ScoreEventInput[]> 
 
     const earnedAdvances = advancesCorrect ? ptsAdvances : 0
     const earnedExact = scoreCorrect ? ptsExact : 0
-    const tripleBonus = fullyCorrect && prediction.tripleActive ? multTriple : 0
-    const scaledTotal = Math.round((earnedAdvances + earnedExact) * scaleFactor)
+    const scaledAdvances = Math.round(earnedAdvances * scaleFactor)
+    const scaledExact = Math.round(earnedExact * scaleFactor)
+    // Triple multiplies the whole match: the bonus is the extra over the base
+    // (base × multTriple = base + base × (multTriple − 1)).
+    const tripleBonus =
+      fullyCorrect && prediction.tripleActive ? (scaledAdvances + scaledExact) * (multTriple - 1) : 0
 
-    if (earnedAdvances > 0 || scaledTotal > 0) {
-      const scaledAdvances = Math.round(earnedAdvances * scaleFactor)
-      const scaledExact = Math.round(earnedExact * scaleFactor)
-
-      if (scaledAdvances > 0) {
-        events.push({ participantId, paramKey: 'pts_ko_advances', matchId: match.id, groupId: null, roundSlug, points: scaledAdvances })
-      }
-      if (scaledExact > 0) {
-        events.push({ participantId, paramKey: 'pts_ko_exact_score', matchId: match.id, groupId: null, roundSlug, points: scaledExact })
-      }
+    if (scaledAdvances > 0) {
+      events.push({ participantId, paramKey: 'pts_ko_advances', matchId: match.id, groupId: null, roundSlug, points: scaledAdvances })
+    }
+    if (scaledExact > 0) {
+      events.push({ participantId, paramKey: 'pts_ko_exact_score', matchId: match.id, groupId: null, roundSlug, points: scaledExact })
     }
 
     if (tripleBonus > 0) {
@@ -280,7 +279,10 @@ export async function persistKoMatchScoreEvents(matchId: string): Promise<void> 
 
     const scaledAdvances = advancesCorrect ? Math.round(ptsAdvances * scaleFactor) : 0
     const scaledExact = scoreCorrect ? Math.round(ptsExact * scaleFactor) : 0
-    const tripleBonus = fullyCorrect && prediction.tripleActive ? multTriple : 0
+    // Triple multiplies the whole match: the bonus is the extra over the base
+    // (base × multTriple = base + base × (multTriple − 1)).
+    const tripleBonus =
+      fullyCorrect && prediction.tripleActive ? (scaledAdvances + scaledExact) * (multTriple - 1) : 0
 
     if (scaledAdvances > 0) {
       events.push({ participantId: prediction.participantId, paramKey: 'pts_ko_advances', matchId, groupId: null, roundSlug, points: scaledAdvances })

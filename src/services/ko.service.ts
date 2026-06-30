@@ -94,8 +94,11 @@ async function buildPointsEarned(
 
   const earnedAdvances = advancesCorrect ? ptsAdvances : 0
   const earnedExact = scoreCorrect ? ptsExact : 0
-  const tripleBonus = fullyCorrect && prediction.tripleActive ? multTriple : 0
-  const total = Math.round((earnedAdvances + earnedExact) * scaleFactor) + tripleBonus
+  const scaledBase = Math.round((earnedAdvances + earnedExact) * scaleFactor)
+  // Triple multiplies the whole match: the bonus is the extra over the base
+  // (base × multTriple = base + base × (multTriple − 1)).
+  const tripleBonus = fullyCorrect && prediction.tripleActive ? scaledBase * (multTriple - 1) : 0
+  const total = scaledBase + tripleBonus
 
   return {
     pts_ko_advances: earnedAdvances,

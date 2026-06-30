@@ -633,8 +633,8 @@ describe('GET /scoreboard', () => {
     const server = await buildServer()
     const res = await server.inject({ method: 'GET', url: '/scoreboard', headers: { cookie } })
     const entry = res.json<{ data: { total: number }[] }>().data[0]
-    // (4 + 6) * 1 + 3 = 13
-    expect(entry.total).toBe(13)
+    // (4 + 6) * 1 = 10 scaled, tripled → 10 * 3 = 30
+    expect(entry.total).toBe(30)
   })
 
   it('KO triple active + wrong exact score → 0 pts (triple-or-nothing penalty)', async () => {

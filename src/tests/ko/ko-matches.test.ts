@@ -285,6 +285,45 @@ describe('GET /ko/matches', () => {
     expect(pts.mult_triple).toBe(0)
   })
 
+  it('triple active + fully correct → total = base * mult_triple', async () => {
+    const server = await buildServer()
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    await buildScoringParam({ key: 'pts_ko_advances', value: 5 })
+    await buildScoringParam({ key: 'pts_ko_exact_score', value: 10 })
+    await buildScoringParam({ key: 'mult_triple', value: 3 })
+    await buildScoringParam({ key: 'scale_r32', value: 1 })
+
+    const homeTeam = await new TeamBuilder().build()
+    const awayTeam = await new TeamBuilder().build()
+    const match = await new MatchBuilder()
+      .withRoundSlug('R32')
+      .withHomeTeamId(homeTeam.id)
+      .withAwayTeamId(awayTeam.id)
+      .withResult(2, 1, homeTeam.id)
+      .build()
+
+    await buildKoPrediction({
+      participantId: participant.id,
+      matchId: match.id,
+      teamAdvancesId: homeTeam.id,
+      scoreHome: 2,
+      scoreAway: 1,
+      tripleActive: true,
+    })
+
+    const res = await server.inject({
+      method: 'GET',
+      url: '/ko/matches?roundSlug=R32',
+      headers: { cookie },
+    })
+
+    const pts = res.json().matches[0].myPrediction.pointsEarned
+    // base = (5 + 10) * 1 = 15, tripled → 45; bonus = 15 * (3 - 1) = 30
+    expect(pts.mult_triple).toBe(30)
+    expect(pts.total).toBe(45)
+  })
+
   it('missing roundSlug → 400 VALIDATION_ERROR', async () => {
     const server = await buildServer()
     const { cookie } = await createAuthenticatedParticipant()

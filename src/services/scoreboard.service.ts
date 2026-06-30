@@ -102,8 +102,12 @@ async function computeProvisionalKoPoints(
         ? Math.round(ptsAdvances * scaleFactor)
         : 0;
       const scaledExact = scoreCorrect ? Math.round(ptsExact * scaleFactor) : 0;
+      // Triple multiplies the whole match: the bonus is the extra over the base
+      // (base × multTriple = base + base × (multTriple − 1)).
       const tripleBonus =
-        fullyCorrect && prediction.tripleActive ? multTriple : 0;
+        fullyCorrect && prediction.tripleActive
+          ? (scaledAdvances + scaledExact) * (multTriple - 1)
+          : 0;
 
       pts += scaledAdvances + scaledExact + tripleBonus;
     }
