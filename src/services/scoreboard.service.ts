@@ -1,7 +1,7 @@
 import { MatchStatus, RoundSlug } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
-import { getParam } from "./scoring.service.js";
+import { getParam, getColombiaTeamId } from "./scoring.service.js";
 import {
   toScoreboardEntryDto,
   toScoreBreakdownDto,
@@ -36,7 +36,7 @@ async function computeProvisionalKoPoints(
   if (liveKoMatches.length === 0) return result;
 
   const liveMatchIds = liveKoMatches.map((m) => m.id);
-  const [livePredictions, ptsAdvances, ptsExact, multTriple] =
+  const [livePredictions, ptsAdvances, ptsExact, multTriple, multColombia, colombiaTeamId] =
     await Promise.all([
       prisma.koPrediction.findMany({
         where: { matchId: { in: liveMatchIds } },
@@ -44,6 +44,8 @@ async function computeProvisionalKoPoints(
       getParam("pts_ko_advances"),
       getParam("pts_ko_exact_score"),
       getParam("mult_triple"),
+      getParam("mult_colombia_ko"),
+      getColombiaTeamId(),
     ]);
 
   const uniqueSlugs = [
@@ -102,14 +104,24 @@ async function computeProvisionalKoPoints(
         ? Math.round(ptsAdvances * scaleFactor)
         : 0;
       const scaledExact = scoreCorrect ? Math.round(ptsExact * scaleFactor) : 0;
-      // Triple multiplies the whole match: the bonus is the extra over the base
-      // (base × multTriple = base + base × (multTriple − 1)).
+      const base = scaledAdvances + scaledExact;
+
+      // Colombia KO matches are worth mult_colombia_ko× the match points.
+      const matchHasColombia =
+        colombiaTeamId !== null &&
+        (match.homeTeamId === colombiaTeamId ||
+          match.awayTeamId === colombiaTeamId);
+      const colombiaFactor = matchHasColombia ? multColombia : 1;
+      const colombiaBonus = Math.round(base * (colombiaFactor - 1));
+
+      // Triple multiplies the whole (Colombia-adjusted) match: the bonus is the
+      // extra over the base (stacks on top of the Colombia multiplier).
       const tripleBonus =
         fullyCorrect && prediction.tripleActive
-          ? (scaledAdvances + scaledExact) * (multTriple - 1)
+          ? Math.round(base * colombiaFactor * (multTriple - 1))
           : 0;
 
-      pts += scaledAdvances + scaledExact + tripleBonus;
+      pts += base + colombiaBonus + tripleBonus;
     }
 
     if (pts !== 0) result.set(participantId, pts);

@@ -560,6 +560,7 @@ paths:
               - pts_dark_horse_per_round
               - pts_disappointment_per_round
               - mult_triple
+              - mult_colombia_ko
               - scale_r32
               - scale_r16
               - scale_qf
@@ -2537,7 +2538,7 @@ components:
             resultado oficial. Las llaves corresponden a los keys de scoring_params.
           oneOf:
             - type: object
-              required: [pts_ko_advances, pts_ko_exact_score, mult_triple, scale_factor, scale_slug, total]
+              required: [pts_ko_advances, pts_ko_exact_score, mult_colombia_ko, mult_triple, scale_factor, scale_slug, total]
               properties:
                 pts_ko_advances:
                   type: integer
@@ -2545,6 +2546,9 @@ components:
                 pts_ko_exact_score:
                   type: integer
                   description: "Puntos por marcador exacto a 120', independiente de quién avanza (cuenta aunque se falle el ganador por penales)"
+                mult_colombia_ko:
+                  type: integer
+                  description: "Puntos adicionales por ser un partido de KO de Colombia (multiplicador mult_colombia_ko, default 5). Se aplica sobre los puntos del partido y se acumula con mult_triple (Colombia + triple = x15)"
                 mult_triple:
                   type: integer
                   description: "Puntos adicionales por triple o nada. Solo si se acierta marcador Y equipo que avanza; si falla cualquiera, el partido entero da 0"

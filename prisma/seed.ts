@@ -35,6 +35,11 @@ async function main() {
       description: "Triple or nothing multiplier",
     },
     {
+      key: "mult_colombia_ko",
+      value: 5,
+      description: "Colombia KO match multiplier",
+    },
+    {
       key: "pts_dark_horse_per_round",
       value: 5,
       description: "Points per round dark horse advances",

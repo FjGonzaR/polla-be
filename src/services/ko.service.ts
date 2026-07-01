@@ -1,7 +1,7 @@
 import type { KoPrediction, Match, MatchPredictionStat, RoundSlug, Team } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
-import { getParam } from './scoring.service.js'
+import { getParam, getColombiaTeamId } from './scoring.service.js'
 import {
   toKoMatchDto,
   toKoRoundDto,
@@ -51,24 +51,28 @@ async function buildPointsEarned(
       ledgerEvents.filter((e) => e.paramKey === key).reduce((acc, e) => acc + e.points, 0)
     const ptsAdvances = sum('pts_ko_advances')
     const ptsExact = sum('pts_ko_exact_score')
+    const colombiaBonus = sum('mult_colombia_ko')
     const tripleBonus = sum('mult_triple')
     const scaleFactor = await getParam(scaleSlug)
     return {
       pts_ko_advances: ptsAdvances,
       pts_ko_exact_score: ptsExact,
+      mult_colombia_ko: colombiaBonus,
       mult_triple: tripleBonus,
       scale_factor: scaleFactor,
       scale_slug: scaleSlug,
-      total: ptsAdvances + ptsExact + tripleBonus,
+      total: ptsAdvances + ptsExact + colombiaBonus + tripleBonus,
     }
   }
 
   // Inline fallback
-  const [ptsAdvances, ptsExact, multTriple, scaleFactor] = await Promise.all([
+  const [ptsAdvances, ptsExact, multTriple, multColombia, scaleFactor, colombiaTeamId] = await Promise.all([
     getParam('pts_ko_advances'),
     getParam('pts_ko_exact_score'),
     getParam('mult_triple'),
+    getParam('mult_colombia_ko'),
     getParam(scaleSlug),
+    getColombiaTeamId(),
   ])
 
   const advancesCorrect = prediction.teamAdvancesId === match.winnerTeamId
@@ -85,6 +89,7 @@ async function buildPointsEarned(
     return {
       pts_ko_advances: 0,
       pts_ko_exact_score: 0,
+      mult_colombia_ko: 0,
       mult_triple: 0,
       scale_factor: scaleFactor,
       scale_slug: scaleSlug,
@@ -95,14 +100,23 @@ async function buildPointsEarned(
   const earnedAdvances = advancesCorrect ? ptsAdvances : 0
   const earnedExact = scoreCorrect ? ptsExact : 0
   const scaledBase = Math.round((earnedAdvances + earnedExact) * scaleFactor)
-  // Triple multiplies the whole match: the bonus is the extra over the base
-  // (base × multTriple = base + base × (multTriple − 1)).
-  const tripleBonus = fullyCorrect && prediction.tripleActive ? scaledBase * (multTriple - 1) : 0
-  const total = scaledBase + tripleBonus
+
+  // Colombia KO matches are worth mult_colombia_ko× the match points.
+  const matchHasColombia =
+    colombiaTeamId !== null &&
+    (match.homeTeamId === colombiaTeamId || match.awayTeamId === colombiaTeamId)
+  const colombiaFactor = matchHasColombia ? multColombia : 1
+  const colombiaBonus = Math.round(scaledBase * (colombiaFactor - 1))
+  // Triple multiplies the whole (Colombia-adjusted) match: the bonus is the
+  // extra over the base (stacks on top of the Colombia multiplier).
+  const tripleBonus =
+    fullyCorrect && prediction.tripleActive ? Math.round(scaledBase * colombiaFactor * (multTriple - 1)) : 0
+  const total = scaledBase + colombiaBonus + tripleBonus
 
   return {
     pts_ko_advances: earnedAdvances,
     pts_ko_exact_score: earnedExact,
+    mult_colombia_ko: colombiaBonus,
     mult_triple: tripleBonus,
     scale_factor: scaleFactor,
     scale_slug: scaleSlug,

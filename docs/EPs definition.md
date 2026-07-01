@@ -170,6 +170,7 @@ pts_ko_exact_score         → puntos por marcador exacto (120')
 pts_dark_horse_per_round   → puntos por cada ronda que avanza el caballo negro
 pts_disappointment_per_round → puntos que se restan por cada ronda que avanza la decepción
 mult_triple                → multiplicador triple o nada (default: 3)
+mult_colombia_ko           → multiplicador para partidos de KO de Colombia (default: 5, se acumula con mult_triple)
 scale_r32                  → multiplicador de ronda para dieciseisavos (default: 1)
 scale_r16                  → multiplicador para octavos (default: 1.5)
 scale_qf                   → multiplicador para cuartos (default: 2)
@@ -239,7 +240,7 @@ scale_final                → multiplicador para final (default: 4)
 | POST | `/admin/groups` | Carga los 12 grupos con sus 4 equipos. Solo una vez. |
 | POST | `/admin/ko/matches` | Carga los partidos de una ronda KO con equipos ya conocidos. Se usa ronda a ronda. |
 | PUT | `/admin/ko/matches/:matchId/result` | Carga o corrige resultado oficial (`score_home`, `score_away`, `winner_team_id`). Dispara recalculate. |
-| PUT | `/admin/scoring-params/{key}` | Edita el valor de un parámetro de puntuación por su key. `key` es uno de los 14 valores de `scoring_params`. |
+| PUT | `/admin/scoring-params/{key}` | Edita el valor de un parámetro de puntuación por su key. `key` es uno de los 15 valores de `scoring_params`. |
 | PUT | `/admin/top8` | Actualiza el listado top 8 FIFA (foto fija). |
 | GET | `/admin/participants` | Lista participantes con puntaje actual y datos de contacto. |
 

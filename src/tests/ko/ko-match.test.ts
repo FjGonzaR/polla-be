@@ -68,6 +68,7 @@ describe('GET /ko/matches/:matchId', () => {
     await buildScoringParam({ key: 'pts_ko_advances', value: 5 })
     await buildScoringParam({ key: 'pts_ko_exact_score', value: 10 })
     await buildScoringParam({ key: 'mult_triple', value: 15 })
+    await buildScoringParam({ key: 'mult_colombia_ko', value: 5 })
     await buildScoringParam({ key: 'scale_sf', value: 2 })
 
     const homeTeam = await new TeamBuilder().build()

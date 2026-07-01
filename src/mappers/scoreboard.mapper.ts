@@ -39,7 +39,7 @@ function computeSharedPrize(rank: number, groupSize: number): number | null {
 
 const GROUP_PARAM_KEYS = ['pts_group_position_exact', 'bonus_group_complete']
 const THIRD_PARAM_KEYS = ['pts_third_correct']
-const KO_PARAM_KEYS = ['pts_ko_advances', 'pts_ko_exact_score', 'mult_triple']
+const KO_PARAM_KEYS = ['pts_ko_advances', 'pts_ko_exact_score', 'mult_colombia_ko', 'mult_triple']
 const DARK_HORSE_PARAM_KEYS = ['pts_dark_horse_per_round', 'pts_dark_horse_group']
 const DISAPPOINTMENT_PARAM_KEYS = ['pts_disappointment_per_round', 'pts_disappointment_group']
 

@@ -7,6 +7,7 @@ const DEFAULT_SCORING_PARAMS: Record<string, number> = {
   pts_ko_advances: 4,
   pts_ko_exact_score: 6,
   mult_triple: 3,
+  mult_colombia_ko: 5,
   pts_dark_horse_per_round: 8,
   pts_disappointment_per_round: 5,
   scale_group: 1,

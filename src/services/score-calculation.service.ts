@@ -1,6 +1,6 @@
 import type { RoundSlug } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
-import { getParam } from './scoring.service.js'
+import { getParam, getColombiaTeamId } from './scoring.service.js'
 
 const KO_ROUND_SLUGS: RoundSlug[] = ['R32', 'R16', 'QF', 'SF', 'THIRD', 'FINAL']
 
@@ -81,7 +81,7 @@ async function buildThirdEvents(participantId: string): Promise<ScoreEventInput[
 }
 
 async function buildKoEvents(participantId: string): Promise<ScoreEventInput[]> {
-  const [predictions, ptsAdvances, ptsExact, multTriple] = await Promise.all([
+  const [predictions, ptsAdvances, ptsExact, multTriple, multColombia, colombiaTeamId] = await Promise.all([
     prisma.koPrediction.findMany({
       where: { participantId },
       include: { match: { include: { round: true } } },
@@ -89,6 +89,8 @@ async function buildKoEvents(participantId: string): Promise<ScoreEventInput[]> 
     getParam('pts_ko_advances'),
     getParam('pts_ko_exact_score'),
     getParam('mult_triple'),
+    getParam('mult_colombia_ko'),
+    getColombiaTeamId(),
   ])
 
   const events: ScoreEventInput[] = []
@@ -119,10 +121,16 @@ async function buildKoEvents(participantId: string): Promise<ScoreEventInput[]> 
     const earnedExact = scoreCorrect ? ptsExact : 0
     const scaledAdvances = Math.round(earnedAdvances * scaleFactor)
     const scaledExact = Math.round(earnedExact * scaleFactor)
-    // Triple multiplies the whole match: the bonus is the extra over the base
-    // (base × multTriple = base + base × (multTriple − 1)).
+    const base = scaledAdvances + scaledExact
+
+    // Colombia KO matches are worth mult_colombia_ko× the match points.
+    const colombiaFactor = matchHasColombia(match, colombiaTeamId) ? multColombia : 1
+    const colombiaBonus = Math.round(base * (colombiaFactor - 1))
+
+    // Triple multiplies the whole (Colombia-adjusted) match: the bonus is the
+    // extra over the base (base × factor × multTriple stacks on top of Colombia).
     const tripleBonus =
-      fullyCorrect && prediction.tripleActive ? (scaledAdvances + scaledExact) * (multTriple - 1) : 0
+      fullyCorrect && prediction.tripleActive ? Math.round(base * colombiaFactor * (multTriple - 1)) : 0
 
     if (scaledAdvances > 0) {
       events.push({ participantId, paramKey: 'pts_ko_advances', matchId: match.id, groupId: null, roundSlug, points: scaledAdvances })
@@ -130,13 +138,24 @@ async function buildKoEvents(participantId: string): Promise<ScoreEventInput[]> 
     if (scaledExact > 0) {
       events.push({ participantId, paramKey: 'pts_ko_exact_score', matchId: match.id, groupId: null, roundSlug, points: scaledExact })
     }
-
+    if (colombiaBonus > 0) {
+      events.push({ participantId, paramKey: 'mult_colombia_ko', matchId: match.id, groupId: null, roundSlug, points: colombiaBonus })
+    }
     if (tripleBonus > 0) {
       events.push({ participantId, paramKey: 'mult_triple', matchId: match.id, groupId: null, roundSlug, points: tripleBonus })
     }
   }
 
   return events
+}
+
+// A KO match "has Colombia" when Colombia is one of the two resolved participants.
+function matchHasColombia(
+  match: { homeTeamId: string | null; awayTeamId: string | null },
+  colombiaTeamId: string | null,
+): boolean {
+  if (!colombiaTeamId) return false
+  return match.homeTeamId === colombiaTeamId || match.awayTeamId === colombiaTeamId
 }
 
 // A team passed the group phase if it finished 1st/2nd or was selected as a best third.
@@ -254,13 +273,17 @@ export async function persistKoMatchScoreEvents(matchId: string): Promise<void> 
   const scaleSlug = SCALE_SLUG_MAP[roundSlug]
   if (!scaleSlug) return
 
-  const [ptsAdvances, ptsExact, multTriple, scaleFactor, predictions] = await Promise.all([
+  const [ptsAdvances, ptsExact, multTriple, multColombia, scaleFactor, colombiaTeamId, predictions] = await Promise.all([
     getParam('pts_ko_advances'),
     getParam('pts_ko_exact_score'),
     getParam('mult_triple'),
+    getParam('mult_colombia_ko'),
     getParam(scaleSlug),
+    getColombiaTeamId(),
     prisma.koPrediction.findMany({ where: { matchId } }),
   ])
+
+  const colombiaFactor = matchHasColombia(match, colombiaTeamId) ? multColombia : 1
 
   const events: ScoreEventInput[] = []
 
@@ -279,16 +302,23 @@ export async function persistKoMatchScoreEvents(matchId: string): Promise<void> 
 
     const scaledAdvances = advancesCorrect ? Math.round(ptsAdvances * scaleFactor) : 0
     const scaledExact = scoreCorrect ? Math.round(ptsExact * scaleFactor) : 0
-    // Triple multiplies the whole match: the bonus is the extra over the base
-    // (base × multTriple = base + base × (multTriple − 1)).
+    const base = scaledAdvances + scaledExact
+
+    // Colombia KO matches are worth mult_colombia_ko× the match points.
+    const colombiaBonus = Math.round(base * (colombiaFactor - 1))
+    // Triple multiplies the whole (Colombia-adjusted) match: the bonus is the
+    // extra over the base (base × factor × multTriple stacks on top of Colombia).
     const tripleBonus =
-      fullyCorrect && prediction.tripleActive ? (scaledAdvances + scaledExact) * (multTriple - 1) : 0
+      fullyCorrect && prediction.tripleActive ? Math.round(base * colombiaFactor * (multTriple - 1)) : 0
 
     if (scaledAdvances > 0) {
       events.push({ participantId: prediction.participantId, paramKey: 'pts_ko_advances', matchId, groupId: null, roundSlug, points: scaledAdvances })
     }
     if (scaledExact > 0) {
       events.push({ participantId: prediction.participantId, paramKey: 'pts_ko_exact_score', matchId, groupId: null, roundSlug, points: scaledExact })
+    }
+    if (colombiaBonus > 0) {
+      events.push({ participantId: prediction.participantId, paramKey: 'mult_colombia_ko', matchId, groupId: null, roundSlug, points: colombiaBonus })
     }
     if (tripleBonus > 0) {
       events.push({ participantId: prediction.participantId, paramKey: 'mult_triple', matchId, groupId: null, roundSlug, points: tripleBonus })
@@ -297,7 +327,7 @@ export async function persistKoMatchScoreEvents(matchId: string): Promise<void> 
 
   await prisma.$transaction([
     prisma.scoreEvent.deleteMany({
-      where: { matchId, paramKey: { in: ['pts_ko_advances', 'pts_ko_exact_score', 'mult_triple'] } },
+      where: { matchId, paramKey: { in: ['pts_ko_advances', 'pts_ko_exact_score', 'mult_colombia_ko', 'mult_triple'] } },
     }),
     prisma.scoreEvent.createMany({ data: events }),
   ])

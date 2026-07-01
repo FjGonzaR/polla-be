@@ -17,6 +17,7 @@ export interface KoResultDto {
 export interface KoPointsEarnedDto {
   pts_ko_advances: number
   pts_ko_exact_score: number
+  mult_colombia_ko: number
   mult_triple: number
   scale_factor: number
   scale_slug: string
