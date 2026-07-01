@@ -121,12 +121,13 @@ export default async function adminRoutes(fastify: FastifyInstance) {
   })
 
   fastify.post('/notifications/broadcast', adminGuard, async (request, reply) => {
-    const { type, message, participantIds } = request.body as {
+    const { type, message, participantIds, day } = request.body as {
       type?: NotificationType
       message?: string
       participantIds?: string[]
+      day?: string
     }
-    const result = await sendBroadcast(type as NotificationType, message ?? '', participantIds)
+    const result = await sendBroadcast(type as NotificationType, { message, participantIds, day })
     return reply.code(200).send(result)
   })
 }

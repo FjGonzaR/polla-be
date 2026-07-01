@@ -5,6 +5,10 @@ import {
   createAuthenticatedAdmin,
 } from '../helpers/auth.helper.js'
 import { buildParticipant } from '../builders/participant.builder.js'
+import { prisma } from '../../lib/prisma.js'
+import { TeamBuilder } from '../builders/team.builder.js'
+import { MatchBuilder } from '../builders/match.builder.js'
+import { buildKoPrediction } from '../builders/ko-prediction.builder.js'
 
 const { mockSendWhatsappMessage } = vi.hoisted(() => ({
   mockSendWhatsappMessage: vi.fn(),
@@ -135,6 +139,70 @@ describe('POST /admin/notifications/broadcast', () => {
 
     expect(res.statusCode).toBe(400)
     expect(res.json().code).toBe('INVALID_NOTIFICATION_TYPE')
+  })
+
+  it('DAILY_RECAP with a day → 200 + involved participant recap (no message needed)', async () => {
+    mockSendWhatsappMessage.mockResolvedValue(undefined)
+    const { cookie } = await createAuthenticatedAdmin()
+    const participant = await buildParticipant({ email: 'recap@test.com', googleId: 'g-recap', hasPhone: true, phone: '+573009999999' })
+    const home = await new TeamBuilder().withName('Brasil').build()
+    const away = await new TeamBuilder().withName('Croacia').build()
+    const match = await new MatchBuilder()
+      .withRoundSlug('R32')
+      .withScheduledAt(new Date('2026-06-20T20:00:00Z'))
+      .withHomeTeamId(home.id)
+      .withAwayTeamId(away.id)
+      .withResult(2, 1, home.id)
+      .build()
+    await buildKoPrediction({ participantId: participant.id, matchId: match.id, teamAdvancesId: home.id })
+    await prisma.scoreEvent.create({
+      data: { participantId: participant.id, paramKey: 'pts_ko_advances', matchId: match.id, roundSlug: 'R32', points: 8 },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/admin/notifications/broadcast',
+      headers: { cookie },
+      payload: { type: 'DAILY_RECAP', day: '2026-06-20' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ total: 1, sent: 1, failed: 0, skipped: 0 })
+    expect(mockSendWhatsappMessage).toHaveBeenCalledOnce()
+    expect(mockSendWhatsappMessage.mock.calls[0][0]).toBe('+573009999999')
+    expect(mockSendWhatsappMessage.mock.calls[0][1]).toContain('*Brasil 2-1 Croacia*')
+  })
+
+  it('DAILY_RECAP for a day with no KO matches → 200 + zeroed counts', async () => {
+    const { cookie } = await createAuthenticatedAdmin()
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/admin/notifications/broadcast',
+      headers: { cookie },
+      payload: { type: 'DAILY_RECAP', day: '2026-06-20' },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.json()).toEqual({ total: 0, sent: 0, failed: 0, skipped: 0 })
+    expect(mockSendWhatsappMessage).not.toHaveBeenCalled()
+  })
+
+  it('DAILY_RECAP with invalid day → 400 INVALID_DAY', async () => {
+    const { cookie } = await createAuthenticatedAdmin()
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/admin/notifications/broadcast',
+      headers: { cookie },
+      payload: { type: 'DAILY_RECAP', day: 'not-a-date' },
+    })
+
+    expect(res.statusCode).toBe(400)
+    expect(res.json().code).toBe('INVALID_DAY')
   })
 
   it('no auth → 401', async () => {

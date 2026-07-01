@@ -19,6 +19,7 @@ import { sendWhatsappReminders } from "./crons/whatsapp-reminder.js";
 import { sendGroupPhaseReminder } from "./crons/group-phase-reminder.js";
 import { calculateGroupStats } from "./crons/calculate-group-stats.js";
 import { calculatePowerupStats } from "./crons/calculate-powerup-stats.js";
+import { sendDailyRecapCron } from "./crons/daily-recap.js";
 import { AppError } from "./lib/errors.js";
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -77,8 +78,11 @@ export async function buildServer(): Promise<FastifyInstance> {
     cron.schedule("0 19 11 6 *", calculateGroupStats);
     cron.schedule("0 19 11 6 *", calculatePowerupStats);
 
+    // daily-recap: cada día a las 10AM Colombia = 15:00 UTC
+    cron.schedule("0 15 * * *", sendDailyRecapCron);
+
     server.log.info(
-      "Crons registrados: sync-ko-results + sync-group-results + whatsapp-reminder + group-phase-reminder + calculate-group-stats + calculate-powerup-stats",
+      "Crons registrados: sync-ko-results + sync-group-results + whatsapp-reminder + group-phase-reminder + calculate-group-stats + calculate-powerup-stats + daily-recap",
     );
   }
 

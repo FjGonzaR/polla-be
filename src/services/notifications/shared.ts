@@ -22,6 +22,7 @@ export function recipientWhere(
 export const NOTIFICATION_TYPES = [
   "GROUP_PHASE_LAST_ROUND_REMINDER",
   "GENERIC",
+  "DAILY_RECAP",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

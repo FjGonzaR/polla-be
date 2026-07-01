@@ -74,6 +74,7 @@ model Participant {
   koPredictions    KoPrediction[]
   scoreEvents      ScoreEvent[]
   matchReminders   MatchReminder[]
+  notifications    Notification[]
 
   @@map("participants")
 }
@@ -307,6 +308,18 @@ model ScoringParam {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("scoring_params")
+}
+
+model Notification {
+  id            String      @id @default(uuid())
+  participantId String      @map("participant_id")
+  participant   Participant @relation(fields: [participantId], references: [id])
+  type          String
+  dedupKey      String      @map("dedup_key")
+  sentAt        DateTime    @default(now()) @map("sent_at")
+
+  @@unique([participantId, type, dedupKey])
+  @@map("notifications")
 }
 
 model MatchReminder {
