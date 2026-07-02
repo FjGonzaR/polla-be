@@ -166,9 +166,16 @@ async function processQueue(): Promise<void> {
 }
 
 export function sendWhatsappMessage(phone: string, text: string): Promise<void> {
-  if (!ENABLED || !sock || !isConnected) {
-    console.warn('[whatsapp-client] Not connected — skipping send to', phone)
-    return Promise.resolve()
+  // Disabled by config (dev/test) — intentional silent no-op.
+  if (!ENABLED) return Promise.resolve()
+
+  // Enabled but not connected: reject so callers count it as failed and, crucially,
+  // do NOT persist a dedup/reminder row for it. A silent resolve here made
+  // notifications record as "sent" while nothing went out, permanently suppressing
+  // the retry.
+  if (!sock || !isConnected) {
+    console.warn('[whatsapp-client] Not connected — send to', phone, 'will fail (retried next run)')
+    return Promise.reject(new Error(`WhatsApp not connected — cannot send to ${phone}`))
   }
 
   return new Promise<void>((resolve, reject) => {
