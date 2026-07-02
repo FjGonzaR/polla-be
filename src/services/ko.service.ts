@@ -1,6 +1,7 @@
 import type { KoPrediction, Match, MatchPredictionStat, RoundSlug, Team } from '@prisma/client'
 import { prisma } from '../lib/prisma.js'
 import { AppError } from '../lib/errors.js'
+import { MAX_TRIPLES } from '../lib/constants.js'
 import { getParam, getColombiaTeamId } from './scoring.service.js'
 import {
   toKoMatchDto,
@@ -229,7 +230,7 @@ export async function createKoPrediction(
 
   if (body.tripleActive) {
     const used = await countTripleUses(participantId)
-    if (used >= 3) throw new AppError(400, 'TRIPLE_USES_EXHAUSTED', 'No triple or nothing uses remaining')
+    if (used >= MAX_TRIPLES) throw new AppError(400, 'TRIPLE_USES_EXHAUSTED', 'No triple or nothing uses remaining')
   }
 
   const existing = await prisma.koPrediction.findUnique({
@@ -249,7 +250,7 @@ export async function createKoPrediction(
   })
 
   const used = await countTripleUses(participantId)
-  return { ok: true, tripleUsesRemaining: 3 - used }
+  return { ok: true, tripleUsesRemaining: MAX_TRIPLES - used }
 }
 
 export async function updateKoPrediction(
@@ -270,7 +271,7 @@ export async function updateKoPrediction(
 
   if (body.tripleActive && !existing.tripleActive) {
     const usedElsewhere = await countTripleUses(participantId, matchId)
-    if (usedElsewhere >= 3) throw new AppError(400, 'TRIPLE_USES_EXHAUSTED', 'No triple or nothing uses remaining')
+    if (usedElsewhere >= MAX_TRIPLES) throw new AppError(400, 'TRIPLE_USES_EXHAUSTED', 'No triple or nothing uses remaining')
   }
 
   await prisma.koPrediction.update({
@@ -284,7 +285,7 @@ export async function updateKoPrediction(
   })
 
   const used = await countTripleUses(participantId)
-  return { ok: true, tripleUsesRemaining: 3 - used }
+  return { ok: true, tripleUsesRemaining: MAX_TRIPLES - used }
 }
 
 type KoFriendsPredictionsDto =

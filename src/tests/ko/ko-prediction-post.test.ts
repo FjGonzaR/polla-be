@@ -18,7 +18,7 @@ async function buildKoMatch() {
 }
 
 describe('POST /ko/matches/:matchId/predictions', () => {
-  it('success → 201, ok=true, tripleUsesRemaining=3, record in DB', async () => {
+  it('success → 201, ok=true, tripleUsesRemaining=8, record in DB', async () => {
     const server = await buildServer()
     const { participant, cookie } = await createAuthenticatedParticipant()
     const { match, homeTeam } = await buildKoMatch()
@@ -31,7 +31,7 @@ describe('POST /ko/matches/:matchId/predictions', () => {
     })
 
     expect(res.statusCode).toBe(201)
-    expect(res.json()).toEqual({ ok: true, tripleUsesRemaining: 3 })
+    expect(res.json()).toEqual({ ok: true, tripleUsesRemaining: 8 })
 
     const row = await prisma.koPrediction.findUnique({
       where: { participantId_matchId: { participantId: participant.id, matchId: match.id } },
@@ -41,7 +41,7 @@ describe('POST /ko/matches/:matchId/predictions', () => {
     expect(row!.tripleActive).toBe(false)
   })
 
-  it('tripleActive=true → 201, tripleUsesRemaining=2', async () => {
+  it('tripleActive=true → 201, tripleUsesRemaining=7', async () => {
     const server = await buildServer()
     const { cookie } = await createAuthenticatedParticipant()
     const { match, homeTeam } = await buildKoMatch()
@@ -54,7 +54,7 @@ describe('POST /ko/matches/:matchId/predictions', () => {
     })
 
     expect(res.statusCode).toBe(201)
-    expect(res.json().tripleUsesRemaining).toBe(2)
+    expect(res.json().tripleUsesRemaining).toBe(7)
   })
 
   it('match not found → 404 MATCH_NOT_FOUND', async () => {
@@ -136,12 +136,12 @@ describe('POST /ko/matches/:matchId/predictions', () => {
     expect(res.json().code).toBe('INVALID_TEAM_ADVANCES')
   })
 
-  it('tripleActive=true with 3 already used → 400 TRIPLE_USES_EXHAUSTED', async () => {
+  it('tripleActive=true with 8 already used → 400 TRIPLE_USES_EXHAUSTED', async () => {
     const server = await buildServer()
     const { participant, cookie } = await createAuthenticatedParticipant()
 
-    // Create 3 triple predictions on other matches
-    for (let i = 0; i < 3; i++) {
+    // Create 8 triple predictions on other matches
+    for (let i = 0; i < 8; i++) {
       const homeTeam = await new TeamBuilder().build()
       const awayTeam = await new TeamBuilder().build()
       const m = await new MatchBuilder()

@@ -61,6 +61,12 @@ function resolveDayWindow(day?: string): DayWindow {
   return windowFromParts(y, m, d);
 }
 
+// Validates an optional `day` string (YYYY-MM-DD) without doing any work, so the
+// broadcast route can reject a bad day synchronously (400) before backgrounding.
+export function assertValidDay(day?: string): void {
+  resolveDayWindow(day);
+}
+
 function formatDayLabel(dateKey: string): string {
   const [y, m, d] = dateKey.split("-");
   return `${d}/${m}/${y}`;

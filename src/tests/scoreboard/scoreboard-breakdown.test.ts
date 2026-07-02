@@ -72,7 +72,7 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(body.breakdown.darkHorse).toBe(0)
     expect(body.breakdown.disappointment).toBe(0)
     expect(body.total).toBe(0)
-    expect(body.tripleUsesRemaining).toBe(3)
+    expect(body.tripleUsesRemaining).toBe(8)
     expect(body.prize).toBe(800000) // only participant → rank 1
   })
 
@@ -107,7 +107,7 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     expect(body.breakdown.darkHorse).toBe(7)
     expect(body.breakdown.disappointment).toBe(-4)
     expect(body.total).toBe(56)                  // 17 + 8 + 28 + 7 + (-4)
-    expect(body.tripleUsesRemaining).toBe(3)
+    expect(body.tripleUsesRemaining).toBe(8)
     expect(body.prize).toBe(800000)              // only participant → rank 1
   })
 
@@ -133,7 +133,7 @@ describe('GET /scoreboard/:participantId/breakdown', () => {
     })
 
     expect(res.statusCode).toBe(200)
-    expect(res.json().tripleUsesRemaining).toBe(2)
+    expect(res.json().tripleUsesRemaining).toBe(7)
   })
 
   it('any participant can see any breakdown', async () => {

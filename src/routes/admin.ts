@@ -13,7 +13,8 @@ import {
   resyncMatchSchedules,
   linkBracketFeeders,
 } from '../services/admin.service.js'
-import { sendBroadcast, type NotificationType } from '../services/notification.service.js'
+import { sendBroadcast, assertBroadcastInput, type NotificationType } from '../services/notification.service.js'
+import { runInBackground } from '../lib/background.js'
 
 export default async function adminRoutes(fastify: FastifyInstance) {
   const adminGuard = { preHandler: [fastify.authenticate, fastify.requireAdmin] }
@@ -127,7 +128,14 @@ export default async function adminRoutes(fastify: FastifyInstance) {
       participantIds?: string[]
       day?: string
     }
-    const result = await sendBroadcast(type as NotificationType, { message, participantIds, day })
-    return reply.code(200).send(result)
+    // Validate synchronously (400 on bad input), then send in the background:
+    // paced delivery can take ~30 min, well past any HTTP gateway timeout. Returning
+    // immediately avoids a 504 and the duplicate broadcasts an admin retry would cause.
+    assertBroadcastInput(type as NotificationType, { message, participantIds, day })
+    runInBackground(
+      sendBroadcast(type as NotificationType, { message, participantIds, day }),
+      'broadcast',
+    )
+    return reply.code(202).send({ status: 'queued' })
   })
 }

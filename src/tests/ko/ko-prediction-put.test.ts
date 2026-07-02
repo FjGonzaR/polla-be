@@ -39,7 +39,7 @@ describe('PUT /ko/matches/:matchId/predictions', () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.json().ok).toBe(true)
-    expect(res.json().tripleUsesRemaining).toBe(3)
+    expect(res.json().tripleUsesRemaining).toBe(8)
 
     const row = await prisma.koPrediction.findUnique({
       where: { participantId_matchId: { participantId: participant.id, matchId: match.id } },
@@ -48,7 +48,7 @@ describe('PUT /ko/matches/:matchId/predictions', () => {
     expect(row!.scoreAway).toBe(2)
   })
 
-  it('activate triple (false→true) when uses available → 200, tripleUsesRemaining=2', async () => {
+  it('activate triple (false→true) when uses available → 200, tripleUsesRemaining=7', async () => {
     const server = await buildServer()
     const { participant, cookie } = await createAuthenticatedParticipant()
     const { match, homeTeam } = await buildKoMatchWithPrediction(participant.id)
@@ -61,7 +61,7 @@ describe('PUT /ko/matches/:matchId/predictions', () => {
     })
 
     expect(res.statusCode).toBe(200)
-    expect(res.json().tripleUsesRemaining).toBe(2)
+    expect(res.json().tripleUsesRemaining).toBe(7)
   })
 
   it('deactivate triple (true→false) → 200, frees a use', async () => {
@@ -89,7 +89,7 @@ describe('PUT /ko/matches/:matchId/predictions', () => {
     })
 
     expect(res.statusCode).toBe(200)
-    expect(res.json().tripleUsesRemaining).toBe(3)
+    expect(res.json().tripleUsesRemaining).toBe(8)
   })
 
   it('match not found → 404 MATCH_NOT_FOUND', async () => {
@@ -195,12 +195,12 @@ describe('PUT /ko/matches/:matchId/predictions', () => {
     expect(res.json().code).toBe('INVALID_TEAM_ADVANCES')
   })
 
-  it('activate triple when 3 already used on other matches → 400 TRIPLE_USES_EXHAUSTED', async () => {
+  it('activate triple when 8 already used on other matches → 400 TRIPLE_USES_EXHAUSTED', async () => {
     const server = await buildServer()
     const { participant, cookie } = await createAuthenticatedParticipant()
 
-    // Burn 3 triples on other matches
-    for (let i = 0; i < 3; i++) {
+    // Burn 8 triples on other matches
+    for (let i = 0; i < 8; i++) {
       const ht = await new TeamBuilder().build()
       const at = await new TeamBuilder().build()
       const m = await new MatchBuilder()

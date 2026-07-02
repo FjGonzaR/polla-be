@@ -142,7 +142,7 @@ Un registro por partido × participante.
 | score_home | int | Marcador pronosticado (resultado a 120') |
 | score_away | int | |
 | team_advances_id | uuid FK | Equipo que el participante cree que clasifica |
-| triple_active | boolean | Default false. Máximo 3 activos por participante en todo el torneo |
+| triple_active | boolean | Default false. Máximo 8 activos por participante en todo el torneo |
 | created_at | timestamp | |
 | updated_at | timestamp | |
 

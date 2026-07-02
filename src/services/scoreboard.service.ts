@@ -1,6 +1,7 @@
 import { MatchStatus, RoundSlug } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { AppError } from "../lib/errors.js";
+import { MAX_TRIPLES } from "../lib/constants.js";
 import { getParam, getColombiaTeamId } from "./scoring.service.js";
 import {
   toScoreboardEntryDto,
@@ -439,7 +440,7 @@ export async function getScoreboardBreakdown(
   return toScoreBreakdownDto(
     participant,
     events,
-    Math.max(0, 3 - tripleCount),
+    Math.max(0, MAX_TRIPLES - tripleCount),
     prize,
     provisional,
   );

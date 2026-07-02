@@ -110,7 +110,7 @@ Private World Cup 2026 predictions pool (~20 participants, invite-only).
 - `group_predictions` — predicted position (1–4) per team per group
 - `third_predictions` — 8 best thirds selection (must be teams predicted 3rd in their group)
 - `powerups` — one per participant: `dark_horse` (must have `is_top8=false`) + `disappointment` (must have `is_top8=true`)
-- `ko_predictions` — exact score + advancing team per KO match. `triple_active` flag (max 3 per participant total)
+- `ko_predictions` — exact score + advancing team per KO match. `triple_active` flag (max 8 per participant total)
 
 **Locking rules:**
 - Groups/thirds/powerups lock before the first match (Jun 11 2026)
