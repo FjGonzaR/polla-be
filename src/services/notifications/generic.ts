@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma.js";
 import {
   deliver,
   appLinkFooter,
+  pickCta,
   recipientWhere,
   type BroadcastResultDto,
   type Recipient,
@@ -18,7 +19,7 @@ export async function sendGenericBroadcast(
   const recipients: Recipient[] = participants.map((p) => ({
     name: p.name,
     phone: p.phone!,
-    text: `${body}\n\n${appLinkFooter()}`,
+    text: `${body}\n\n${pickCta("generic")}\n\n${appLinkFooter()}`,
   }));
   const { sent, failed } = await deliver(recipients);
   return { total: participants.length, sent, failed, skipped: 0 };

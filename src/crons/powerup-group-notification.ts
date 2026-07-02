@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js'
 import { sendWhatsappMessage } from '../lib/whatsapp.client.js'
+import { pickCta } from '../services/notifications/shared.js'
 
 function buildDarkHorseGroupMessage(teamName: string, groupLabel: string, position: number): string {
   const appUrl = process.env.APP_URL ?? 'https://app.paulpredice.com'
@@ -22,7 +23,7 @@ function buildDarkHorseGroupMessage(teamName: string, groupLabel: string, positi
     body = `${teamLine}\n\nMala noticia: tu caballo negro se despide en grupos. No fue su Mundial.`
   }
 
-  return `🐙 *PaulPredice* — ${header}\n\n⚽ *Polla Mundial 2026*\n${body}\n${appUrl}`
+  return `🐙 *PaulPredice* — ${header}\n\n⚽ *Polla Mundial 2026*\n${body}\n\n${pickCta('powerup')}\n\n${appUrl}`
 }
 
 export async function sendPowerupGroupNotifications(groupId: string): Promise<void> {

@@ -1,13 +1,15 @@
 import { prisma } from '../lib/prisma.js'
 import { sendWhatsappMessage } from '../lib/whatsapp.client.js'
+import { pickCta } from '../services/notifications/shared.js'
 
 const APP_URL = process.env.APP_URL ?? 'https://app.paulpredice.com'
 
-const REMINDER_MESSAGE =
+// Built per send so the CTA rotates across recipients.
+const buildReminderMessage = (): string =>
   `🐙 *PaulPredice* — ¡Recuerda llenar tus predicciones!\n\n` +
   `⚽ *Polla Mundial 2026*\n` +
   `El torneo empieza pronto y aún tienes predicciones pendientes en la fase de grupos.\n\n` +
-  `¡Entra antes del pitazo inicial!\n${APP_URL}`
+  `¡Entra antes del pitazo inicial!\n\n${pickCta('groupPhase')}\n\n${APP_URL}`
 
 async function isGroupPhaseComplete(participantId: string): Promise<boolean> {
   const [groupCount, thirdCount, powerup] = await Promise.all([
@@ -34,7 +36,7 @@ export async function sendGroupPhaseReminder(): Promise<void> {
         const complete = await isGroupPhaseComplete(participant.id)
         if (complete) continue
 
-        await sendWhatsappMessage(participant.phone!, REMINDER_MESSAGE)
+        await sendWhatsappMessage(participant.phone!, buildReminderMessage())
         sent++
         console.info(`[group-phase-reminder] Sent to ${participant.name}`)
       } catch (err) {

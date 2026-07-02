@@ -1,6 +1,7 @@
 import { MatchStatus, RoundSlug } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { sendWhatsappMessage } from "../lib/whatsapp.client.js";
+import { pickCta } from "../services/notifications/shared.js";
 
 type MatchWithRelations = Awaited<
   ReturnType<typeof fetchUpcomingMatches>
@@ -38,7 +39,8 @@ function buildReminderMessage(match: MatchWithRelations): string {
     `⚽ *Polla Mundial 2026*\n` +
     `*${home} vs ${away}*\n` +
     `Hora: ${time} (Colombia)\n\n` +
-    `El pulpo ya tiene su favorito, pero tú aún no has dejado tu pronóstico. ¡Entra antes del pitazo inicial!\n${process.env.APP_URL ?? "https://app.paulpredice.com"}`
+    `El pulpo ya tiene su favorito, pero tú aún no has dejado tu pronóstico. ¡Entra antes del pitazo inicial!\n\n` +
+    `${pickCta("matchReminder")}\n\n${process.env.APP_URL ?? "https://app.paulpredice.com"}`
   );
 }
 

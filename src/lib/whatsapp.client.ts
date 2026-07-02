@@ -1,5 +1,6 @@
 import { rm } from 'node:fs/promises'
 import type { WASocket } from '@whiskeysockets/baileys'
+import { createPacedQueue } from './paced-queue.js'
 
 const SESSION_DIR = process.env.BAILEYS_SESSION_DIR ?? '.baileys-session'
 const ENABLED = process.env.WHATSAPP_ENABLED === 'true'
@@ -146,62 +147,25 @@ export function waitUntilConnected(timeoutMs = 90_000): Promise<void> {
   })
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
-
-interface QueuedSend {
-  phone: string
-  text: string
-  resolve: () => void
-  reject: (err: Error) => void
-}
-
-const sendQueue: QueuedSend[] = []
-let queueRunning = false
-let sentSinceBatchPause = 0
-
 async function rawSend(phone: string, text: string): Promise<void> {
   const jid = phone.replace('+', '') + '@s.whatsapp.net'
   const result = await sock!.sendMessage(jid, { text })
   if (result?.key?.id) trackDelivery(result.key.id, phone)
 }
 
-// Drains the queue one message at a time, pacing sends. Never runs concurrently
-// with itself (guarded by queueRunning), so all sends are strictly serialized.
-async function processQueue(): Promise<void> {
-  if (queueRunning) return
-  queueRunning = true
-  try {
-    while (sendQueue.length > 0) {
-      const job = sendQueue.shift()!
-      try {
-        await rawSend(job.phone, job.text)
-        job.resolve()
-      } catch (err) {
-        job.reject(err as Error)
-      }
-      sentSinceBatchPause++
-
-      if (sendQueue.length === 0) {
-        // Queue drained — reset batch counter so the next burst starts fresh.
-        sentSinceBatchPause = 0
-        break
-      }
-
-      if (BATCH_SIZE > 0 && sentSinceBatchPause >= BATCH_SIZE) {
-        sentSinceBatchPause = 0
-        console.info(
-          `[whatsapp-client] Sent batch of ${BATCH_SIZE} — pausing ${BATCH_PAUSE_MS}ms (${sendQueue.length} queued)`,
-        )
-        await sleep(BATCH_PAUSE_MS)
-      } else {
-        const jitter = SEND_JITTER_MS > 0 ? Math.floor(Math.random() * SEND_JITTER_MS) : 0
-        await sleep(SEND_DELAY_MS + jitter)
-      }
-    }
-  } finally {
-    queueRunning = false
-  }
-}
+// Single serialized, rate-limited queue for ALL outbound sends. Pacing logic lives
+// in ./paced-queue.ts (unit-tested) — see that file for why gap-based pacing matters.
+const queue = createPacedQueue({
+  send: rawSend,
+  delayMs: SEND_DELAY_MS,
+  jitterMs: SEND_JITTER_MS,
+  batchSize: BATCH_SIZE,
+  batchPauseMs: BATCH_PAUSE_MS,
+  onBatchPause: (queued) =>
+    console.info(
+      `[whatsapp-client] Sent batch of ${BATCH_SIZE} — pausing ${BATCH_PAUSE_MS}ms (${queued} queued)`,
+    ),
+})
 
 export function sendWhatsappMessage(phone: string, text: string): Promise<void> {
   // Disabled by config (dev/test) — intentional silent no-op.
@@ -216,10 +180,7 @@ export function sendWhatsappMessage(phone: string, text: string): Promise<void> 
     return Promise.reject(new Error(`WhatsApp not connected — cannot send to ${phone}`))
   }
 
-  return new Promise<void>((resolve, reject) => {
-    sendQueue.push({ phone, text, resolve, reject })
-    void processQueue()
-  })
+  return queue.enqueue(phone, text)
 }
 
 if (ENABLED) {

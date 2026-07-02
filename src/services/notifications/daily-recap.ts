@@ -2,7 +2,7 @@ import { MatchStatus, RoundSlug } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { AppError } from "../../lib/errors.js";
 import { sendWhatsappMessage } from "../../lib/whatsapp.client.js";
-import { appLinkFooter, type BroadcastResultDto } from "./shared.js";
+import { appLinkFooter, pickCta, type BroadcastResultDto } from "./shared.js";
 
 const DAY_REGEX = /^(\d{4})-(\d{2})-(\d{2})$/;
 // Colombia (America/Bogota) is UTC-5 year-round (no DST), so 00:00 local = 05:00 UTC.
@@ -136,7 +136,7 @@ function buildRecapMessage(
     `Total: *${formatPoints(total)}*`,
   ];
   if (powerupLines.length > 0) parts.push(``, ...powerupLines);
-  parts.push(``, appLinkFooter());
+  parts.push(``, pickCta("dailyRecap"), ``, appLinkFooter());
   return parts.join("\n");
 }
 

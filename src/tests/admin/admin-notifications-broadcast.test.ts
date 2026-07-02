@@ -51,7 +51,7 @@ describe('POST /admin/notifications/broadcast', () => {
     expect(text).not.toContain('Bob')
   })
 
-  it('GENERIC → 200 + body verbatim plus app link footer', async () => {
+  it('GENERIC → 200 + body plus CTA and app link footer', async () => {
     const { cookie } = await createAuthenticatedAdmin()
     await buildParticipant({ name: 'Alice', email: 'alice@test.com', hasPhone: true, phone: '+573001111111' })
 
@@ -68,7 +68,12 @@ describe('POST /admin/notifications/broadcast', () => {
 
     expect(mockSendWhatsappMessage).toHaveBeenCalledTimes(1)
     const text = mockSendWhatsappMessage.mock.calls[0][1] as string
-    expect(text).toBe('Mensaje libre del admin\n\nhttps://app.paulpredice.com')
+    // body first, then a CTA line, then the URL alone on its own line (for link detection)
+    expect(text.startsWith('Mensaje libre del admin\n\n')).toBe(true)
+    expect(text.endsWith('\n\nhttps://app.paulpredice.com')).toBe(true)
+    expect(text.length).toBeGreaterThan(
+      'Mensaje libre del admin\n\n\n\nhttps://app.paulpredice.com'.length,
+    )
     expect(text).not.toContain('PaulPredice*')
     expect(text).not.toContain('posición')
   })

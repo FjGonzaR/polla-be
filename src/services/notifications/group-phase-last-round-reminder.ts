@@ -3,6 +3,7 @@ import { getScoreboard } from "../scoreboard.service.js";
 import {
   deliver,
   appLinkFooter,
+  pickCta,
   recipientWhere,
   type BroadcastResultDto,
   type Recipient,
@@ -32,7 +33,7 @@ export async function sendGroupPhaseLastRoundReminder(
     recipients.push({
       name: p.name,
       phone: p.phone!,
-      text: `🐙 *PaulPredice*\n\nVas en la *posición ${position}* de la polla 📊\n\n${body}\n\n${appLinkFooter()}`,
+      text: `🐙 *PaulPredice*\n\nVas en la *posición ${position}* de la polla 📊\n\n${body}\n\n${pickCta("standings")}\n\n${appLinkFooter()}`,
     });
   }
   const { sent, failed } = await deliver(recipients);
