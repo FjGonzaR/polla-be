@@ -18,6 +18,26 @@ const SEND_JITTER_MS = Number(process.env.WHATSAPP_SEND_JITTER_MS ?? 2000)
 const BATCH_SIZE = Number(process.env.WHATSAPP_BATCH_SIZE ?? 10)
 const BATCH_PAUSE_MS = Number(process.env.WHATSAPP_BATCH_PAUSE_MS ?? 60_000)
 
+// --- Delivery tracking -------------------------------------------------------
+// A resolved sendMessage() only means WhatsApp accepted the message into the
+// socket, NOT that it reached the recipient's device. A restricted/banned number
+// sees sends "succeed" while no delivery receipt ever arrives. We record every
+// outbound message id and warn if no delivery ack shows up within this window —
+// that missing ack is the clearest signal the number is being throttled/banned.
+const DELIVERY_TIMEOUT_MS = Number(process.env.WHATSAPP_DELIVERY_TIMEOUT_MS ?? 60_000)
+const pendingDeliveries = new Map<string, { phone: string; timer: ReturnType<typeof setTimeout> }>()
+
+function trackDelivery(msgId: string, phone: string): void {
+  const timer = setTimeout(() => {
+    if (!pendingDeliveries.delete(msgId)) return
+    console.warn(
+      `[whatsapp-client] NO delivery receipt for ${phone} (msg=${msgId}) after ${DELIVERY_TIMEOUT_MS}ms — ` +
+        'message likely NOT delivered (number possibly restricted/banned by WhatsApp)',
+    )
+  }, DELIVERY_TIMEOUT_MS)
+  pendingDeliveries.set(msgId, { phone, timer })
+}
+
 let sock: WASocket | null = null
 let isConnected = false
 let lastQr: string | null = null
@@ -39,6 +59,23 @@ async function initWhatsApp(): Promise<void> {
   })
 
   sock.ev.on('creds.update', saveCreds)
+
+  // Delivery receipts. status >= 2 (DELIVERY_ACK) means the message reached the
+  // recipient's device; anything less never leaves WhatsApp's servers.
+  sock.ev.on('messages.update', (updates) => {
+    for (const { key, update } of updates) {
+      if (!key.id || update.status == null) continue
+      const pending = pendingDeliveries.get(key.id)
+      if (!pending) continue
+      if (update.status >= 2) {
+        clearTimeout(pending.timer)
+        pendingDeliveries.delete(key.id)
+        console.info(
+          `[whatsapp-client] Delivered to ${pending.phone} (msg=${key.id}, status=${update.status})`,
+        )
+      }
+    }
+  })
 
   sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
     if (qr) {
@@ -124,7 +161,8 @@ let sentSinceBatchPause = 0
 
 async function rawSend(phone: string, text: string): Promise<void> {
   const jid = phone.replace('+', '') + '@s.whatsapp.net'
-  await sock!.sendMessage(jid, { text })
+  const result = await sock!.sendMessage(jid, { text })
+  if (result?.key?.id) trackDelivery(result.key.id, phone)
 }
 
 // Drains the queue one message at a time, pacing sends. Never runs concurrently
