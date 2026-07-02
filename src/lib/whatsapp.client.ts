@@ -1,7 +1,11 @@
+import { rm } from 'node:fs/promises'
 import type { WASocket } from '@whiskeysockets/baileys'
 
 const SESSION_DIR = process.env.BAILEYS_SESSION_DIR ?? '.baileys-session'
 const ENABLED = process.env.WHATSAPP_ENABLED === 'true'
+// Backoff before reconnecting after a dropped connection. Prevents a repeated
+// failure (e.g. a 403 block) from hammering WhatsApp and escalating to a ban.
+const RECONNECT_DELAY_MS = Number(process.env.WHATSAPP_RECONNECT_DELAY_MS ?? 5000)
 
 // --- Outbound rate limiting --------------------------------------------------
 // WhatsApp bans numbers that send too fast (ours was blocked once). Every
@@ -36,7 +40,7 @@ async function initWhatsApp(): Promise<void> {
 
   sock.ev.on('creds.update', saveCreds)
 
-  sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
+  sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       lastQr = qr
       console.info('[whatsapp-client] QR generated — waiting for scan')
@@ -55,16 +59,26 @@ async function initWhatsApp(): Promise<void> {
       const statusCode = boom?.output?.statusCode
       const message = boom?.message ?? 'unknown'
       console.warn(`[whatsapp-client] Connection closed — statusCode=${statusCode} message="${message}"`)
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut
 
-      if (shouldReconnect) {
+      if (statusCode === DisconnectReason.loggedOut) {
+        // WhatsApp invalidated the session. The stale creds keep failing with
+        // 401 forever, so wipe them before re-init — otherwise no fresh QR is
+        // ever produced and /whatsapp/qr is stuck reporting "initializing".
+        console.error('[whatsapp-client] Logged out — clearing session to regenerate QR')
+        await rm(SESSION_DIR, { recursive: true, force: true }).catch((err: Error) =>
+          console.error('[whatsapp-client] Failed to clear session dir:', err.message),
+        )
+      } else {
         console.warn('[whatsapp-client] Reconnecting...')
+      }
+
+      // Reconnect with a fresh session if we just cleared it. Backoff avoids
+      // hammering WhatsApp on a repeated failure.
+      setTimeout(() => {
         initWhatsApp().catch((err: Error) =>
           console.error('[whatsapp-client] Reconnect failed:', err.message),
         )
-      } else {
-        console.error('[whatsapp-client] Logged out — re-scan QR to reconnect')
-      }
+      }, RECONNECT_DELAY_MS)
     }
   })
 }
