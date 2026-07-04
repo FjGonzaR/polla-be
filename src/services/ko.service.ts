@@ -173,7 +173,7 @@ export async function findKoMatches(
     where: {
       participantId,
       matchId: { in: matchIds },
-      paramKey: { in: ['pts_ko_advances', 'pts_ko_exact_score', 'mult_triple'] },
+      paramKey: { in: ['pts_ko_advances', 'pts_ko_exact_score', 'mult_colombia_ko', 'mult_triple'] },
     },
     select: { matchId: true, paramKey: true, points: true },
   })
@@ -347,7 +347,7 @@ export async function findKoMatch(matchId: string, participantId: string): Promi
       where: {
         participantId,
         matchId,
-        paramKey: { in: ['pts_ko_advances', 'pts_ko_exact_score', 'mult_triple'] },
+        paramKey: { in: ['pts_ko_advances', 'pts_ko_exact_score', 'mult_colombia_ko', 'mult_triple'] },
       },
       select: { paramKey: true, points: true },
     })

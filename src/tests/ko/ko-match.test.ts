@@ -5,6 +5,7 @@ import { TeamBuilder } from '../builders/team.builder.js'
 import { buildKoPrediction } from '../builders/ko-prediction.builder.js'
 import { buildScoringParam } from '../builders/scoring-param.builder.js'
 import { createAuthenticatedParticipant } from '../helpers/auth.helper.js'
+import { persistKoMatchScoreEvents } from '../../services/score-calculation.service.js'
 
 describe('GET /ko/matches/:matchId', () => {
   it('success → 200 with KoMatch shape', async () => {
@@ -100,6 +101,50 @@ describe('GET /ko/matches/:matchId', () => {
     expect(pred.pointsEarned.scale_slug).toBe('scale_sf')
     expect(pred.pointsEarned.scale_factor).toBe(2)
     expect(pred.pointsEarned.total).toBe(30)
+  })
+
+  it('Colombia KO match with persisted ledger → pointsEarned includes mult_colombia_ko', async () => {
+    // Regression: the single-match ledger query must include 'mult_colombia_ko'
+    // or the Colombia bonus is dropped from the displayed points.
+    const server = await buildServer()
+    const { participant, cookie } = await createAuthenticatedParticipant()
+
+    await buildScoringParam({ key: 'pts_ko_advances', value: 2 })
+    await buildScoringParam({ key: 'pts_ko_exact_score', value: 3 })
+    await buildScoringParam({ key: 'mult_triple', value: 3 })
+    await buildScoringParam({ key: 'mult_colombia_ko', value: 5 })
+    await buildScoringParam({ key: 'scale_r32', value: 2 })
+
+    const colombia = await new TeamBuilder().withName('Colombia').withCode('COL').build()
+    const rival = await new TeamBuilder().build()
+    const match = await new MatchBuilder()
+      .withRoundSlug('R32')
+      .withHomeTeamId(colombia.id)
+      .withAwayTeamId(rival.id)
+      .withResult(1, 0, colombia.id)
+      .build()
+
+    await buildKoPrediction({
+      participantId: participant.id,
+      matchId: match.id,
+      teamAdvancesId: colombia.id,
+      scoreHome: 2,
+      scoreAway: 0,
+      tripleActive: false,
+    })
+
+    await persistKoMatchScoreEvents(match.id)
+
+    const res = await server.inject({
+      method: 'GET',
+      url: `/ko/matches/${match.id}`,
+      headers: { cookie },
+    })
+
+    const pts = res.json().myPrediction.pointsEarned
+    // scaledAdvances = 2 * 2 = 4; Colombia bonus = 4 * (5 - 1) = 16; total = 20
+    expect(pts.mult_colombia_ko).toBe(16)
+    expect(pts.total).toBe(20)
   })
 
   it('exposes additionalData (scorers + stadium) when present', async () => {
