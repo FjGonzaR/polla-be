@@ -83,6 +83,7 @@ export const NOTIFICATION_TYPES = [
   "GROUP_PHASE_LAST_ROUND_REMINDER",
   "GENERIC",
   "DAILY_RECAP",
+  "FINAL_STANDINGS",
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

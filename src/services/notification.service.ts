@@ -6,6 +6,7 @@ import {
 import { sendGroupPhaseLastRoundReminder } from "./notifications/group-phase-last-round-reminder.js";
 import { sendGenericBroadcast } from "./notifications/generic.js";
 import { broadcastDailyRecap, assertValidDay } from "./notifications/daily-recap.js";
+import { sendFinalStandings } from "./notifications/final-standings.js";
 
 export { type NotificationType } from "./notifications/shared.js";
 
@@ -36,6 +37,9 @@ export function assertBroadcastInput(
     case "DAILY_RECAP":
       assertValidDay(options.day);
       return;
+    case "FINAL_STANDINGS":
+      // message is optional (appended if present); nothing to validate synchronously.
+      return;
     default:
       throw new AppError(
         400,
@@ -58,6 +62,8 @@ export async function sendBroadcast(
       return sendGenericBroadcast(requireMessage(message), participantIds);
     case "DAILY_RECAP":
       return broadcastDailyRecap(day, participantIds);
+    case "FINAL_STANDINGS":
+      return sendFinalStandings(message, participantIds);
     default:
       throw new AppError(
         400,

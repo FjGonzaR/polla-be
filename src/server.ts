@@ -1,7 +1,6 @@
 import Fastify, { type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
-import cron from "node-cron";
 import "dotenv/config";
 import prismaPlugin from "./plugins/prisma.js";
 import authenticatePlugin from "./plugins/authenticate.js";
@@ -13,13 +12,9 @@ import powerupsRoutes from "./routes/powerups.js";
 import adminRoutes from "./routes/admin.js";
 import scoreboardRoutes from "./routes/scoreboard.js";
 import whatsappRoutes from "./routes/whatsapp.js";
-import { syncKoResults } from "./crons/sync-ko-results.js";
-import { syncGroupResults } from "./crons/sync-group-results.js";
-import { sendWhatsappReminders } from "./crons/whatsapp-reminder.js";
-import { sendGroupPhaseReminder } from "./crons/group-phase-reminder.js";
-import { calculateGroupStats } from "./crons/calculate-group-stats.js";
-import { calculatePowerupStats } from "./crons/calculate-powerup-stats.js";
-import { sendDailyRecapCron } from "./crons/daily-recap.js";
+// Crons DESREGISTRADOS — el torneo terminó; no se agenda ningún cron (sync,
+// stats ni notificaciones). Las funciones siguen disponibles en ./crons/* para
+// ejecución manual si hiciera falta.
 import { AppError } from "./lib/errors.js";
 
 export async function buildServer(): Promise<FastifyInstance> {
@@ -54,36 +49,12 @@ export async function buildServer(): Promise<FastifyInstance> {
   });
 
   if (process.env.NODE_ENV !== "test") {
-    syncKoResults();
-    syncGroupResults();
-
-    // sync-standings: DESREGISTRADO — standings ahora se calculan desde los
-    // resultados de los partidos en sync-group-results. Se mantiene como
-    // fallback manual (worldcupApi.getStandings()).
-
-    // sync-ko-results: cada 5 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
-    cron.schedule("*/5 17-23,0-6 * * *", syncKoResults);
-
-    // sync-group-results: cada 5 min entre 12PM y 1AM Colombia = 17-23 y 0-6 UTC
-    cron.schedule("*/5 17-23,0-6 * * *", syncGroupResults);
-
-    // sendWhatsappReminders: cada 10 MIN
-    cron.schedule("*/10 * * * *", sendWhatsappReminders);
-
-    // group-phase-reminder: one-time — Jun 10 17:00 UTC (12PM COL) y Jun 11 14:00 UTC (9AM COL)
-    cron.schedule("0 17 10 6 *", sendGroupPhaseReminder);
-    cron.schedule("0 14 11 6 *", sendGroupPhaseReminder);
-
-    // calculate-group-stats: Jun 11 2026 at 19:00 UTC (2PM Colombia, tournament start)
-    cron.schedule("0 19 11 6 *", calculateGroupStats);
-    cron.schedule("0 19 11 6 *", calculatePowerupStats);
-
-    // daily-recap: cada día a las 10AM Colombia = 15:00 UTC
-    cron.schedule("0 15 * * *", sendDailyRecapCron);
-
-    server.log.info(
-      "Crons registrados: sync-ko-results + sync-group-results + whatsapp-reminder + group-phase-reminder + calculate-group-stats + calculate-powerup-stats + daily-recap",
-    );
+    // Todos los crons DESREGISTRADOS — el torneo terminó. Ni sync (sync-ko-results,
+    // sync-group-results) ni stats (calculate-group-stats, calculate-powerup-stats)
+    // ni notificaciones (whatsapp-reminder, group-phase-reminder, daily-recap) se
+    // agendan. El único envío que queda es manual: la notificación FINAL_STANDINGS
+    // vía POST /admin/notifications/broadcast.
+    server.log.info("Crons desregistrados: ninguno agendado (torneo finalizado)");
   }
 
   return server;

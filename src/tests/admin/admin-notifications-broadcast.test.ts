@@ -221,6 +221,88 @@ describe('POST /admin/notifications/broadcast', () => {
     expect(res.json().code).toBe('INVALID_DAY')
   })
 
+  it('FINAL_STANDINGS → 202 + podium winner gets prize, medal and contact promise', async () => {
+    mockSendWhatsappMessage.mockResolvedValue(undefined)
+    const { cookie } = await createAuthenticatedAdmin()
+    const winner = await buildParticipant({ name: 'Alice', email: 'alice@test.com', hasPhone: true, phone: '+573001111111' })
+    await prisma.scoreEvent.create({
+      data: { participantId: winner.id, paramKey: 'pts_ko_advances', roundSlug: 'R32', points: 100 },
+    })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/admin/notifications/broadcast',
+      headers: { cookie },
+      payload: { type: 'FINAL_STANDINGS' },
+    })
+
+    expect(res.statusCode).toBe(202)
+    expect(res.json()).toEqual({ status: 'queued' })
+
+    await flushBackground()
+    expect(mockSendWhatsappMessage).toHaveBeenCalledTimes(1)
+    const text = mockSendWhatsappMessage.mock.calls[0][1] as string
+    expect(text).toContain('Alice')
+    expect(text).toContain('1° posición')
+    expect(text).toContain('800.000')
+    expect(text).toContain('🥇')
+    expect(text).toContain('Nos pondremos en contacto')
+    expect(text).toContain('https://app.paulpredice.com')
+  })
+
+  it('FINAL_STANDINGS → 202 + non-podium gets final position without prize/contact line', async () => {
+    mockSendWhatsappMessage.mockResolvedValue(undefined)
+    const { cookie } = await createAuthenticatedAdmin()
+    // 3 participants with points ahead so the 4th finishes off the podium.
+    for (let i = 1; i <= 3; i++) {
+      const top = await buildParticipant({ name: `Top${i}`, email: `top${i}@test.com`, googleId: `g-top${i}`, hasPhone: true, phone: `+57300000000${i}` })
+      await prisma.scoreEvent.create({
+        data: { participantId: top.id, paramKey: 'pts_ko_advances', roundSlug: 'R32', points: 100 },
+      })
+    }
+    const last = await buildParticipant({ name: 'Zoe', email: 'zoe@test.com', googleId: 'g-zoe', hasPhone: true, phone: '+573009999999' })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/admin/notifications/broadcast',
+      headers: { cookie },
+      payload: { type: 'FINAL_STANDINGS', participantIds: [last.id] },
+    })
+
+    expect(res.statusCode).toBe(202)
+
+    await flushBackground()
+    expect(mockSendWhatsappMessage).toHaveBeenCalledTimes(1)
+    const text = mockSendWhatsappMessage.mock.calls[0][1] as string
+    expect(text).toContain('4° posición')
+    expect(text).toContain('Gracias por jugar')
+    expect(text).not.toContain('Nos pondremos en contacto')
+    expect(text).not.toContain('premio')
+  })
+
+  it('FINAL_STANDINGS → 202 + optional admin message appended', async () => {
+    mockSendWhatsappMessage.mockResolvedValue(undefined)
+    const { cookie } = await createAuthenticatedAdmin()
+    await buildParticipant({ name: 'Alice', email: 'alice@test.com', hasPhone: true, phone: '+573001111111' })
+
+    const server = await buildServer()
+    const res = await server.inject({
+      method: 'POST',
+      url: '/admin/notifications/broadcast',
+      headers: { cookie },
+      payload: { type: 'FINAL_STANDINGS', message: 'Gracias a todos por esta polla inolvidable' },
+    })
+
+    expect(res.statusCode).toBe(202)
+
+    await flushBackground()
+    expect(mockSendWhatsappMessage).toHaveBeenCalledTimes(1)
+    const text = mockSendWhatsappMessage.mock.calls[0][1] as string
+    expect(text).toContain('Gracias a todos por esta polla inolvidable')
+  })
+
   it('no auth → 401', async () => {
     const server = await buildServer()
     const res = await server.inject({
